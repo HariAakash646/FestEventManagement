@@ -291,6 +291,35 @@ const EventInfo = () => {
         });
     const totalMerchPurchases = merchandisePurchaseRows.reduce((sum, row) => sum + row.quantity, 0);
     const selectedMerchPurchase = merchandisePurchaseRows.find((row) => row.key === selectedMerchPurchaseKey) || null;
+
+    // --- Event Analytics ---
+    const allRequests = Array.isArray(eventData?.pendingRegistrationRequests) ? eventData.pendingRegistrationRequests : [];
+    const analyticsRegistrationCount = registrations.length;
+    const analyticsPendingCount = allRequests.filter((r) => r?.status === "Pending").length;
+    const analyticsApprovedCount = allRequests.filter((r) => r?.status === "Approved").length;
+    const analyticsRejectedCount = allRequests.filter((r) => r?.status === "Rejected").length;
+
+    const analyticsNormalRevenue = (() => {
+        const fee = Number(eventData?.registrationFee) || 0;
+        return fee * analyticsRegistrationCount;
+    })();
+
+    const analyticsMerchRevenue = merchandisePurchaseRows.reduce((sum, row) => {
+        const item = (Array.isArray(items) ? items : []).find((i) => String(i._id) === row.itemId);
+        return sum + (row.quantity * (item?.cost || 0));
+    }, 0);
+
+    const analyticsTotalRevenue = eventData?.eventType === "Merchandise Event" ? analyticsMerchRevenue : analyticsNormalRevenue;
+
+    const analyticsTeamRequests = allRequests.filter((r) => r?.isTeamRegistration);
+    const analyticsTeamsComplete = analyticsTeamRequests.filter((r) => {
+        const memberCount = 1 + (Array.isArray(r.teamMembers) ? r.teamMembers.length : 0);
+        return memberCount >= (r.targetTeamSize || Infinity);
+    }).length;
+    const analyticsTeamsPending = analyticsTeamRequests.filter((r) => {
+        const memberCount = 1 + (Array.isArray(r.teamMembers) ? r.teamMembers.length : 0);
+        return memberCount < (r.targetTeamSize || Infinity);
+    }).length;
     const pendingMerchPurchaseRequests = (Array.isArray(items) ? items : [])
         .flatMap((item) => {
             const requests = Array.isArray(item.pendingPurchaseRequests) ? item.pendingPurchaseRequests : [];
@@ -1344,6 +1373,112 @@ const EventInfo = () => {
                         </Stack>
                     </Box>
 
+                    {/* Event Analytics Section */}
+                    {eventData.status !== "Draft" && (
+                        <Box p={5} border="1px solid" borderColor="gray.200" borderRadius="lg" bg="white" boxShadow="sm">
+                            <Stack gap={4}>
+                                <Heading size="md">Event Analytics</Heading>
+                                <Box h="1px" bg="gray.200" />
+                                <SimpleGrid columns={{ base: 2, md: 4 }} gap={4}>
+                                    <Box p={4} bg="teal.50" borderRadius="md" textAlign="center">
+                                        <Text fontSize="2xl" fontWeight="bold" color="teal.700">
+                                            {eventData.eventType === "Merchandise Event" ? totalMerchPurchases : analyticsRegistrationCount}
+                                        </Text>
+                                        <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wider">
+                                            {eventData.eventType === "Merchandise Event" ? "Total Sales" : "Registrations"}
+                                        </Text>
+                                    </Box>
+                                    <Box p={4} bg="yellow.50" borderRadius="md" textAlign="center">
+                                        <Text fontSize="2xl" fontWeight="bold" color="yellow.700">
+                                            {analyticsPendingCount}
+                                        </Text>
+                                        <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wider">
+                                            Pending Approval
+                                        </Text>
+                                    </Box>
+                                    <Box p={4} bg="green.50" borderRadius="md" textAlign="center">
+                                        <Text fontSize="2xl" fontWeight="bold" color="green.700">
+                                            ₹{analyticsTotalRevenue.toLocaleString()}
+                                        </Text>
+                                        <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wider">
+                                            Revenue
+                                        </Text>
+                                    </Box>
+                                    {eventData.registrationLimit > 0 && (
+                                        <Box p={4} bg="blue.50" borderRadius="md" textAlign="center">
+                                            <Text fontSize="2xl" fontWeight="bold" color="blue.700">
+                                                {eventData.eventType === "Merchandise Event"
+                                                    ? totalMerchPurchases
+                                                    : analyticsRegistrationCount}
+                                                {" / "}
+                                                {eventData.registrationLimit}
+                                            </Text>
+                                            <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wider">
+                                                Capacity Filled
+                                            </Text>
+                                        </Box>
+                                    )}
+                                </SimpleGrid>
+                                {eventData.isTeamEvent && analyticsTeamRequests.length > 0 && (
+                                    <>
+                                        <Box h="1px" bg="gray.200" />
+                                        <Heading size="sm">Team Completion</Heading>
+                                        <SimpleGrid columns={{ base: 2, md: 3 }} gap={4}>
+                                            <Box p={4} bg="green.50" borderRadius="md" textAlign="center">
+                                                <Text fontSize="2xl" fontWeight="bold" color="green.700">
+                                                    {analyticsTeamsComplete}
+                                                </Text>
+                                                <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wider">
+                                                    Teams Complete
+                                                </Text>
+                                            </Box>
+                                            <Box p={4} bg="orange.50" borderRadius="md" textAlign="center">
+                                                <Text fontSize="2xl" fontWeight="bold" color="orange.700">
+                                                    {analyticsTeamsPending}
+                                                </Text>
+                                                <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wider">
+                                                    Teams Incomplete
+                                                </Text>
+                                            </Box>
+                                            <Box p={4} bg="teal.50" borderRadius="md" textAlign="center">
+                                                <Text fontSize="2xl" fontWeight="bold" color="teal.700">
+                                                    {analyticsTeamRequests.length}
+                                                </Text>
+                                                <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wider">
+                                                    Total Teams
+                                                </Text>
+                                            </Box>
+                                        </SimpleGrid>
+                                    </>
+                                )}
+                                {eventData.eventType === "Merchandise Event" && items.length > 0 && (
+                                    <>
+                                        <Box h="1px" bg="gray.200" />
+                                        <Heading size="sm">Sales by Item</Heading>
+                                        <SimpleGrid columns={{ base: 1, md: 2 }} gap={3}>
+                                            {items.map((item) => {
+                                                const sold = Array.isArray(item.purchaseRecords)
+                                                    ? item.purchaseRecords.reduce((s, r) => s + (r.quantity || 0), 0)
+                                                    : 0;
+                                                const itemRevenue = sold * (item.cost || 0);
+                                                return (
+                                                    <Box key={String(item._id)} p={3} bg="gray.50" borderRadius="md">
+                                                        <Text fontSize="sm" fontWeight="semibold" color="gray.800">{item.itemName}</Text>
+                                                        <HStack gap={4} mt={1}>
+                                                            <Text fontSize="xs" color="gray.600">Sold: {sold} / {item.stockAvailable + sold}</Text>
+                                                            <Text fontSize="xs" color="gray.600">Revenue: ₹{itemRevenue.toLocaleString()}</Text>
+                                                            <Text fontSize="xs" color="gray.600">Stock Left: {item.stockAvailable}</Text>
+                                                        </HStack>
+                                                    </Box>
+                                                );
+                                            })}
+                                        </SimpleGrid>
+                                    </>
+                                )}
+                            </Stack>
+                        </Box>
+                    )}
+
                     {eventData.eventType === "Normal Event" ? (
                         <Box p={5} border="1px solid" borderColor="gray.200" borderRadius="lg" bg="white" boxShadow="sm">
                             <Stack gap={4}>
@@ -1496,56 +1631,56 @@ const EventInfo = () => {
                                                             </Stack>
                                                         </Box>
                                                     ) : (
-                                                    <Box
-                                                        key={String(request._id)}
-                                                        border="1px solid"
-                                                        borderColor="gray.100"
-                                                        borderRadius="md"
-                                                        p={3}
-                                                    >
-                                                        <Stack gap={2}>
-                                                            <SimpleGrid columns={{ base: 1, md: 2 }} gap={2}>
-                                                                <Text fontSize="sm" color="gray.700">Name: {request.participantName}</Text>
-                                                                <Text fontSize="sm" color="gray.700">Email: {request.participantEmail}</Text>
-                                                                <Text fontSize="sm" color="gray.700">Requested At: {formatDate(request.requestedAt)}</Text>
-                                                                <Text fontSize="sm" color="gray.700">Payment: Rs. {request.paymentAmount ?? 0}</Text>
-                                                            </SimpleGrid>
-                                                            {request.paymentProof?.contentBase64 ? (
-                                                                <Button
-                                                                    as="a"
-                                                                    href={request.paymentProof.contentBase64}
-                                                                    target="_blank"
-                                                                    rel="noreferrer"
-                                                                    size="xs"
-                                                                    alignSelf="start"
-                                                                    variant="outline"
-                                                                >
-                                                                    View Payment Proof
-                                                                </Button>
-                                                            ) : (
-                                                                <Text fontSize="sm" color="gray.600">Payment proof not available.</Text>
-                                                            )}
-                                                            <HStack>
-                                                                <Button
-                                                                    size="xs"
-                                                                    colorPalette="green"
-                                                                    onClick={() => handlePendingRequestReview(String(request._id), "approve")}
-                                                                    loading={processingPendingRequestId === String(request._id)}
-                                                                >
-                                                                    Accept
-                                                                </Button>
-                                                                <Button
-                                                                    size="xs"
-                                                                    colorPalette="red"
-                                                                    variant="outline"
-                                                                    onClick={() => handlePendingRequestReview(String(request._id), "reject")}
-                                                                    loading={processingPendingRequestId === String(request._id)}
-                                                                >
-                                                                    Reject
-                                                                </Button>
-                                                            </HStack>
-                                                        </Stack>
-                                                    </Box>
+                                                        <Box
+                                                            key={String(request._id)}
+                                                            border="1px solid"
+                                                            borderColor="gray.100"
+                                                            borderRadius="md"
+                                                            p={3}
+                                                        >
+                                                            <Stack gap={2}>
+                                                                <SimpleGrid columns={{ base: 1, md: 2 }} gap={2}>
+                                                                    <Text fontSize="sm" color="gray.700">Name: {request.participantName}</Text>
+                                                                    <Text fontSize="sm" color="gray.700">Email: {request.participantEmail}</Text>
+                                                                    <Text fontSize="sm" color="gray.700">Requested At: {formatDate(request.requestedAt)}</Text>
+                                                                    <Text fontSize="sm" color="gray.700">Payment: Rs. {request.paymentAmount ?? 0}</Text>
+                                                                </SimpleGrid>
+                                                                {request.paymentProof?.contentBase64 ? (
+                                                                    <Button
+                                                                        as="a"
+                                                                        href={request.paymentProof.contentBase64}
+                                                                        target="_blank"
+                                                                        rel="noreferrer"
+                                                                        size="xs"
+                                                                        alignSelf="start"
+                                                                        variant="outline"
+                                                                    >
+                                                                        View Payment Proof
+                                                                    </Button>
+                                                                ) : (
+                                                                    <Text fontSize="sm" color="gray.600">Payment proof not available.</Text>
+                                                                )}
+                                                                <HStack>
+                                                                    <Button
+                                                                        size="xs"
+                                                                        colorPalette="green"
+                                                                        onClick={() => handlePendingRequestReview(String(request._id), "approve")}
+                                                                        loading={processingPendingRequestId === String(request._id)}
+                                                                    >
+                                                                        Accept
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="xs"
+                                                                        colorPalette="red"
+                                                                        variant="outline"
+                                                                        onClick={() => handlePendingRequestReview(String(request._id), "reject")}
+                                                                        loading={processingPendingRequestId === String(request._id)}
+                                                                    >
+                                                                        Reject
+                                                                    </Button>
+                                                                </HStack>
+                                                            </Stack>
+                                                        </Box>
                                                     )
                                                 ))}
                                             </Stack>
@@ -1622,10 +1757,10 @@ const EventInfo = () => {
                                                     <Text fontSize="sm" color="gray.500" textTransform="uppercase" letterSpacing="wider">
                                                         Selected Participant Submission
                                                     </Text>
-                                                {Array.isArray(selectedRegistration.formSnapshot) &&
-                                                selectedRegistration.formSnapshot.length > 0 ? (
-                                                    <Stack gap={3}>
-                                                        {selectedRegistration.formSnapshot.map((field, fieldIndex) => (
+                                                    {Array.isArray(selectedRegistration.formSnapshot) &&
+                                                        selectedRegistration.formSnapshot.length > 0 ? (
+                                                        <Stack gap={3}>
+                                                            {selectedRegistration.formSnapshot.map((field, fieldIndex) => (
                                                                 <Box
                                                                     key={`${field.fieldLabel}-${fieldIndex}`}
                                                                     border="1px solid"
@@ -1648,30 +1783,30 @@ const EventInfo = () => {
                                                                         Response: {formatSubmittedFieldValue(field)}
                                                                     </Text>
                                                                 </Box>
-                                                        ))}
-                                                    </Stack>
-                                                ) : (
-                                                    <Text color="gray.600">No form data submitted.</Text>
-                                                )}
-                                                {selectedRegistration.qrCodeDataUrl && (
-                                                    <Box border="1px solid" borderColor="gray.100" borderRadius="md" p={3}>
-                                                        <Text fontSize="sm" color="gray.500" textTransform="uppercase" letterSpacing="wider" mb={2}>
-                                                            Registration QR
-                                                        </Text>
-                                                        <Box
-                                                            as="img"
-                                                            src={selectedRegistration.qrCodeDataUrl}
-                                                            alt="Registration QR"
-                                                            maxW="220px"
-                                                            borderRadius="md"
-                                                        />
-                                                    </Box>
-                                                )}
-                                            </Stack>
-                                        ) : (
-                                            <Text color="gray.600">Select a participant row to view submission details.</Text>
-                                        )}
-                                    </Box>
+                                                            ))}
+                                                        </Stack>
+                                                    ) : (
+                                                        <Text color="gray.600">No form data submitted.</Text>
+                                                    )}
+                                                    {selectedRegistration.qrCodeDataUrl && (
+                                                        <Box border="1px solid" borderColor="gray.100" borderRadius="md" p={3}>
+                                                            <Text fontSize="sm" color="gray.500" textTransform="uppercase" letterSpacing="wider" mb={2}>
+                                                                Registration QR
+                                                            </Text>
+                                                            <Box
+                                                                as="img"
+                                                                src={selectedRegistration.qrCodeDataUrl}
+                                                                alt="Registration QR"
+                                                                maxW="220px"
+                                                                borderRadius="md"
+                                                            />
+                                                        </Box>
+                                                    )}
+                                                </Stack>
+                                            ) : (
+                                                <Text color="gray.600">Select a participant row to view submission details.</Text>
+                                            )}
+                                        </Box>
                                     </Stack>
                                 )}
                                 <Box border="1px solid" borderColor="gray.100" borderRadius="md" p={4}>
@@ -2261,52 +2396,52 @@ const EventInfo = () => {
                                 )}
 
                                 {!eventData.isTeamEvent && (
-                                <Box border="1px solid" borderColor="gray.100" borderRadius="md" p={3}>
-                                    <Stack gap={2}>
-                                        <HStack justify="space-between" align="center">
-                                            <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wider">
-                                                Form Title
-                                            </Text>
-                                            {editingFormTitle ? (
-                                                <HStack gap={1}>
+                                    <Box border="1px solid" borderColor="gray.100" borderRadius="md" p={3}>
+                                        <Stack gap={2}>
+                                            <HStack justify="space-between" align="center">
+                                                <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wider">
+                                                    Form Title
+                                                </Text>
+                                                {editingFormTitle ? (
+                                                    <HStack gap={1}>
+                                                        <Button
+                                                            size="xs"
+                                                            colorPalette="green"
+                                                            onClick={saveFormTitleChange}
+                                                            loading={isSavingFormTitle}
+                                                        >
+                                                            ✓
+                                                        </Button>
+                                                        <Button
+                                                            size="xs"
+                                                            colorPalette="red"
+                                                            variant="outline"
+                                                            onClick={cancelFormTitleEdit}
+                                                            disabled={isSavingFormTitle}
+                                                        >
+                                                            ✕
+                                                        </Button>
+                                                    </HStack>
+                                                ) : (
                                                     <Button
                                                         size="xs"
-                                                        colorPalette="green"
-                                                        onClick={saveFormTitleChange}
-                                                        loading={isSavingFormTitle}
-                                                    >
-                                                        ✓
-                                                    </Button>
-                                                    <Button
-                                                        size="xs"
-                                                        colorPalette="red"
                                                         variant="outline"
-                                                        onClick={cancelFormTitleEdit}
-                                                        disabled={isSavingFormTitle}
+                                                        onClick={beginEditFormTitle}
+                                                        disabled={editingRegFieldIndex !== null || !canEditRegistrationForm}
                                                     >
-                                                        ✕
+                                                        Edit
                                                     </Button>
-                                                </HStack>
+                                                )}
+                                            </HStack>
+                                            {editingFormTitle ? (
+                                                <Input value={formTitleDraft} onChange={(e) => setFormTitleDraft(e.target.value)} />
                                             ) : (
-                                                <Button
-                                                    size="xs"
-                                                    variant="outline"
-                                                    onClick={beginEditFormTitle}
-                                                    disabled={editingRegFieldIndex !== null || !canEditRegistrationForm}
-                                                >
-                                                    Edit
-                                                </Button>
+                                                <Text fontWeight="semibold" color="gray.700">
+                                                    {eventData.customForm?.formTitle || "Registration Form"}
+                                                </Text>
                                             )}
-                                        </HStack>
-                                        {editingFormTitle ? (
-                                            <Input value={formTitleDraft} onChange={(e) => setFormTitleDraft(e.target.value)} />
-                                        ) : (
-                                            <Text fontWeight="semibold" color="gray.700">
-                                                {eventData.customForm?.formTitle || "Registration Form"}
-                                            </Text>
-                                        )}
-                                    </Stack>
-                                </Box>
+                                        </Stack>
+                                    </Box>
                                 )}
 
                                 {!eventData.isTeamEvent && (Array.isArray(eventData.customForm?.fields) && eventData.customForm.fields.length > 0 ? (
@@ -2338,36 +2473,36 @@ const EventInfo = () => {
                                                             >
                                                                 Down
                                                             </Button>
-                                                        {editingRegFieldIndex === index ? (
-                                                            <>
+                                                            {editingRegFieldIndex === index ? (
+                                                                <>
+                                                                    <Button
+                                                                        size="xs"
+                                                                        colorPalette="green"
+                                                                        onClick={saveRegFieldChange}
+                                                                        loading={isSavingRegField}
+                                                                    >
+                                                                        ✓
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="xs"
+                                                                        colorPalette="red"
+                                                                        variant="outline"
+                                                                        onClick={cancelRegFieldEdit}
+                                                                        disabled={isSavingRegField}
+                                                                    >
+                                                                        ✕
+                                                                    </Button>
+                                                                </>
+                                                            ) : (
                                                                 <Button
                                                                     size="xs"
-                                                                    colorPalette="green"
-                                                                    onClick={saveRegFieldChange}
-                                                                    loading={isSavingRegField}
-                                                                >
-                                                                    ✓
-                                                                </Button>
-                                                                <Button
-                                                                    size="xs"
-                                                                    colorPalette="red"
                                                                     variant="outline"
-                                                                    onClick={cancelRegFieldEdit}
-                                                                    disabled={isSavingRegField}
+                                                                    onClick={() => beginEditRegField(index)}
+                                                                    disabled={editingRegFieldIndex !== null || editingFormTitle || !canEditRegistrationForm}
                                                                 >
-                                                                    ✕
+                                                                    Edit
                                                                 </Button>
-                                                            </>
-                                                        ) : (
-                                                            <Button
-                                                                size="xs"
-                                                                variant="outline"
-                                                                onClick={() => beginEditRegField(index)}
-                                                                disabled={editingRegFieldIndex !== null || editingFormTitle || !canEditRegistrationForm}
-                                                            >
-                                                                Edit
-                                                            </Button>
-                                                        )}
+                                                            )}
                                                         </HStack>
                                                     </HStack>
 

@@ -175,7 +175,7 @@ const OrganizerHome = () => {
                                     </Text>
                                     {event.eventType === "Normal Event" && (
                                         <Text fontSize="sm" color="gray.700" fontWeight="medium">
-                                            Registered Users: {Array.isArray(event.registeredFormList) ? event.registeredFormList.length : 0}
+                                            Registered Users: {event.registeredCount ?? (Array.isArray(event.registeredFormList) ? event.registeredFormList.length : 0)}
                                         </Text>
                                     )}
                                     <Button

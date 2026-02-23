@@ -305,7 +305,22 @@ const pendingRegistrationRequestSchema = new mongoose.Schema({
             message: {
                 type: String,
                 trim: true,
-                required: true,
+                default: "",
+            },
+            fileUrl: {
+                type: String,
+                trim: true,
+                default: "",
+            },
+            fileName: {
+                type: String,
+                trim: true,
+                default: "",
+            },
+            fileType: {
+                type: String,
+                trim: true,
+                default: "",
             },
             sentAt: {
                 type: Date,

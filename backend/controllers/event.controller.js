@@ -219,14 +219,22 @@ export const getEvents = async (req, res) => {
         let eventQuery = Event.find(query);
         if (shouldUseLite) {
             eventQuery = eventQuery.select(
-                "eventName eventDescription eventType status registrationOpen eligibility registrationDeadline eventStartDate eventEndDate registrationLimit registrationFee isTeamEvent minTeamSize maxTeamSize organizerId eventTags itemIds visitsTimeStamps createdAt updatedAt"
+                "eventName eventDescription eventType status registrationOpen eligibility registrationDeadline eventStartDate eventEndDate registrationLimit registrationFee isTeamEvent minTeamSize maxTeamSize organizerId eventTags itemIds visitsTimeStamps registeredFormList pendingRegistrationRequests createdAt updatedAt"
             );
         }
 
         const events = await eventQuery;
 
         if (shouldUseLite) {
-            return res.status(200).json({ success: true, data: events });
+            const liteData = events.map((event) => {
+                const obj = event.toObject();
+                obj.registeredCount = Array.isArray(obj.registeredFormList) ? obj.registeredFormList.length : 0;
+                obj.pendingRequestsCount = Array.isArray(obj.pendingRegistrationRequests) ? obj.pendingRegistrationRequests.length : 0;
+                delete obj.registeredFormList;
+                delete obj.pendingRegistrationRequests;
+                return obj;
+            });
+            return res.status(200).json({ success: true, data: liteData });
         }
 
         await Promise.all(
@@ -1501,8 +1509,10 @@ export const sendTeamChatMessage = async (req, res) => {
         }
 
         const message = String(req.body?.message || "").trim();
-        if (!message) {
-            return res.status(400).json({ success: false, message: "Message cannot be empty" });
+        const file = req.file || null;
+
+        if (!message && !file) {
+            return res.status(400).json({ success: false, message: "Message or file is required" });
         }
         if (message.length > 1000) {
             return res.status(400).json({ success: false, message: "Message is too long" });
@@ -1539,12 +1549,21 @@ export const sendTeamChatMessage = async (req, res) => {
         }
 
         const senderName = `${sender.firstName || ""} ${sender.lastName || ""}`.trim() || sender.email;
-        teamRequest.teamChatMessages.push({
+
+        const chatEntry = {
             senderId: sender._id,
             senderName,
-            message,
+            message: message || "",
             sentAt: new Date(),
-        });
+        };
+
+        if (file) {
+            chatEntry.fileUrl = `/uploads/chat/${file.filename}`;
+            chatEntry.fileName = file.originalname || file.filename;
+            chatEntry.fileType = file.mimetype || "";
+        }
+
+        teamRequest.teamChatMessages.push(chatEntry);
         if (Array.isArray(teamRequest.teamTypingUsers)) {
             teamRequest.teamTypingUsers = teamRequest.teamTypingUsers.filter(
                 (entry) => String(entry.participantId) !== String(sender._id)

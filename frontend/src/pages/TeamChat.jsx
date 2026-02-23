@@ -1,17 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
     Box,
     Button,
     Flex,
     Heading,
-    Input,
+    IconButton,
+    Image,
+    Link,
     Stack,
     Text,
     Textarea,
 } from "@chakra-ui/react";
-import { apiCall } from "../utils/api.js";
+import { apiCall, apiCallFormData } from "../utils/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
+
+const BACKEND_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "");
 
 const formatDateTime = (value) => {
     if (!value) return "N/A";
@@ -19,6 +23,8 @@ const formatDateTime = (value) => {
     if (Number.isNaN(parsed.getTime())) return "N/A";
     return parsed.toLocaleString();
 };
+
+const isImageType = (mimeType) => typeof mimeType === "string" && mimeType.startsWith("image/");
 
 const TeamChat = () => {
     const { eventId, teamCode } = useParams();
@@ -29,6 +35,8 @@ const TeamChat = () => {
     const [eventName, setEventName] = useState("Team Event");
     const [typingUsers, setTypingUsers] = useState([]);
     const [messageDraft, setMessageDraft] = useState("");
+    const [selectedFile, setSelectedFile] = useState(null);
+    const fileInputRef = useRef(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSending, setIsSending] = useState(false);
     const [error, setError] = useState("");
@@ -101,15 +109,43 @@ const TeamChat = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [eventId, teamCode]);
 
-    const canSend = useMemo(() => messageDraft.trim().length > 0 && messageDraft.trim().length <= 1000, [messageDraft]);
+    const canSend = useMemo(() => {
+        const hasText = messageDraft.trim().length > 0 && messageDraft.trim().length <= 1000;
+        return hasText || selectedFile !== null;
+    }, [messageDraft, selectedFile]);
+
+    const handleFileSelect = (e) => {
+        const file = e.target.files?.[0] || null;
+        if (file && file.size > 5 * 1024 * 1024) {
+            setError("File size must be under 5 MB.");
+            return;
+        }
+        setSelectedFile(file);
+        setError("");
+    };
+
+    const handleRemoveFile = () => {
+        setSelectedFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    };
 
     const handleSend = async () => {
         if (!canSend) return;
         setIsSending(true);
         try {
-            const response = await apiCall(`/events/${eventId}/team-registration/${teamCode}/chat`, "POST", {
-                message: messageDraft.trim(),
-            });
+            let response;
+            if (selectedFile) {
+                const formData = new FormData();
+                formData.append("file", selectedFile);
+                if (messageDraft.trim()) {
+                    formData.append("message", messageDraft.trim());
+                }
+                response = await apiCallFormData(`/events/${eventId}/team-registration/${teamCode}/chat`, formData);
+            } else {
+                response = await apiCall(`/events/${eventId}/team-registration/${teamCode}/chat`, "POST", {
+                    message: messageDraft.trim(),
+                });
+            }
             if (!response?.success) {
                 setError(response?.message || "Failed to send message.");
                 return;
@@ -118,6 +154,8 @@ const TeamChat = () => {
             setMessages(Array.isArray(payload.messages) ? payload.messages : []);
             setTypingUsers(Array.isArray(payload.typingUsers) ? payload.typingUsers : []);
             setMessageDraft("");
+            setSelectedFile(null);
+            if (fileInputRef.current) fileInputRef.current.value = "";
             setError("");
         } catch {
             setError("Something went wrong while sending message.");
@@ -172,7 +210,20 @@ const TeamChat = () => {
                                 messages.map((msg, index) => (
                                     <Box key={`${msg.senderId || "sender"}-${msg.sentAt || ""}-${index}`} border="1px solid" borderColor="gray.100" borderRadius="md" p={3}>
                                         <Text fontSize="sm" fontWeight="semibold" color="teal.700">{msg.senderName || "Participant"}</Text>
-                                        <Text fontSize="sm" color="gray.800" mt={1}>{msg.message || ""}</Text>
+                                        {msg.message && <Text fontSize="sm" color="gray.800" mt={1}>{msg.message}</Text>}
+                                        {msg.fileUrl && (
+                                            <Box mt={2}>
+                                                {isImageType(msg.fileType) ? (
+                                                    <Link href={`${BACKEND_URL}${msg.fileUrl}`} target="_blank" rel="noopener noreferrer">
+                                                        <Image src={`${BACKEND_URL}${msg.fileUrl}`} alt={msg.fileName || "attachment"} maxH="200px" borderRadius="md" objectFit="contain" />
+                                                    </Link>
+                                                ) : (
+                                                    <Link href={`${BACKEND_URL}${msg.fileUrl}`} target="_blank" rel="noopener noreferrer" color="teal.600" fontSize="sm" fontWeight="medium">
+                                                        📎 {msg.fileName || "Download file"}
+                                                    </Link>
+                                                )}
+                                            </Box>
+                                        )}
                                         <Text fontSize="xs" color="gray.500" mt={1}>{formatDateTime(msg.sentAt)}</Text>
                                     </Box>
                                 ))
@@ -182,7 +233,7 @@ const TeamChat = () => {
 
                     <Box border="1px solid" borderColor="gray.200" borderRadius="lg" bg="white" p={4}>
                         <Stack gap={3}>
-                            <Text fontSize="sm" color="gray.600">Send a message to your team</Text>
+                            <Text fontSize="sm" color="gray.600">Send a message or file to your team</Text>
                             <Textarea
                                 rows={3}
                                 maxLength={1000}
@@ -192,6 +243,29 @@ const TeamChat = () => {
                                 placeholder="Type your message..."
                             />
                             <Text fontSize="xs" color="gray.500">{messageDraft.length}/1000</Text>
+
+                            <Flex alignItems="center" gap={2} flexWrap="wrap">
+                                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                                    📎 Attach File
+                                </Button>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*,.pdf,.txt,.doc,.docx,.xls,.xlsx"
+                                    style={{ display: "none" }}
+                                    onChange={handleFileSelect}
+                                />
+                                {selectedFile && (
+                                    <Flex alignItems="center" gap={1} bg="gray.100" px={2} py={1} borderRadius="md">
+                                        <Text fontSize="xs" color="gray.700" maxW="200px" isTruncated>{selectedFile.name}</Text>
+                                        <Text fontSize="xs" color="gray.500">({(selectedFile.size / 1024).toFixed(0)} KB)</Text>
+                                        <Button size="xs" variant="ghost" colorPalette="red" onClick={handleRemoveFile}>
+                                            ✕
+                                        </Button>
+                                    </Flex>
+                                )}
+                            </Flex>
+
                             {error && <Text color="red.500" fontSize="sm">{error}</Text>}
                             <Stack direction="row" gap={2}>
                                 <Button colorPalette="teal" onClick={handleSend} loading={isSending} disabled={!canSend}>
