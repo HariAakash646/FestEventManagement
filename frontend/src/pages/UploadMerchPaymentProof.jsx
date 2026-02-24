@@ -29,6 +29,8 @@ const UploadMerchPaymentProof = () => {
     const eventId = location.state?.eventId || "";
     const eventName = location.state?.eventName || "Merchandise Event";
     const itemName = location.state?.itemName || "Item";
+    const selectedColor = location.state?.selectedColor || "";
+    const selectedSize = location.state?.selectedSize || "";
 
     const handleSubmit = async () => {
         setSubmitError("");
@@ -48,6 +50,8 @@ const UploadMerchPaymentProof = () => {
             const response = await apiCall(`/items/${itemId}/purchase-requests`, "POST", {
                 quantity,
                 paymentProof,
+                selectedColor,
+                selectedSize,
             });
             if (!response?.success) {
                 setSubmitError(response?.message || "Failed to submit payment proof.");
@@ -89,6 +93,8 @@ const UploadMerchPaymentProof = () => {
                     <Text fontSize="sm" color="gray.600">Event: {eventName}</Text>
                     <Text fontSize="sm" color="gray.600">Item: {itemName}</Text>
                     <Text fontSize="sm" color="gray.600">Quantity: {quantity}</Text>
+                    <Text fontSize="sm" color="gray.600">Color: {selectedColor || "N/A"}</Text>
+                    <Text fontSize="sm" color="gray.600">Size: {selectedSize || "N/A"}</Text>
 
                     <Box>
                         <Text fontSize="sm" mb={1}>Payment Proof</Text>

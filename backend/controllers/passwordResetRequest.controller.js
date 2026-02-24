@@ -96,7 +96,8 @@ const generateRandomPassword = (length = 8) => {
 export const reviewPasswordResetRequest = async (req, res) => {
     try {
         const { id } = req.params;
-        const { action } = req.body || {};
+        const { action, comment } = req.body || {};
+        const reviewComment = typeof comment === "string" ? comment.trim() : "";
 
         if (!["Approved", "Rejected"].includes(action)) {
             return res.status(400).json({ success: false, message: "action must be Approved or Rejected" });
@@ -107,9 +108,27 @@ export const reviewPasswordResetRequest = async (req, res) => {
             return res.status(404).json({ success: false, message: "Password reset request not found" });
         }
 
+        if (request.status !== "Pending") {
+            return res.status(400).json({ success: false, message: "This request has already been reviewed" });
+        }
+
+        const reviewedAt = new Date();
+
         if (action === "Rejected") {
-            await PasswordResetRequest.findByIdAndDelete(id);
-            return res.status(200).json({ success: true, message: "Request rejected and removed" });
+            request.status = "Rejected";
+            request.reviewedAt = reviewedAt;
+            request.reviewComment = reviewComment;
+            request.reviewHistory.push({
+                action: "Rejected",
+                comment: reviewComment,
+                reviewedAt,
+            });
+            await request.save();
+            return res.status(200).json({
+                success: true,
+                message: "Request rejected.",
+                data: request,
+            });
         }
 
         const organizer = await User.findOne({
@@ -143,11 +162,24 @@ export const reviewPasswordResetRequest = async (req, res) => {
             });
         }
 
-        await PasswordResetRequest.findByIdAndDelete(id);
+        request.status = "Approved";
+        request.reviewedAt = reviewedAt;
+        request.reviewComment = reviewComment;
+        request.reviewHistory.push({
+            action: "Approved",
+            comment: reviewComment,
+            reviewedAt,
+        });
+        await request.save();
 
         return res.status(200).json({
             success: true,
-            message: "Request approved, password reset completed, and request removed.",
+            message: "Request approved and password reset completed.",
+            data: request,
+            generatedCredentials: {
+                organizerEmail: organizer.email,
+                temporaryPassword,
+            },
         });
     } catch (error) {
         console.log("error in reviewing password reset request: ", error.message);

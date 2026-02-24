@@ -57,10 +57,10 @@ const Navbar = () => {
                 <HStack gap={2} flexWrap="wrap" justifyContent={{ base: "center", md: "start" }}>
                     {homePath && (
                         <ChakraLink as={RouterLink} to={homePath} {...linkStyle(homePath)}>
-                            Home
+                            Dashboard
                         </ChakraLink>
                     )}
-                    
+
                     {!user && (
                         <>
                             <ChakraLink as={RouterLink} to="/register" {...linkStyle("/register")}>
@@ -70,12 +70,6 @@ const Navbar = () => {
                                 Login
                             </ChakraLink>
                         </>
-                    )}
-
-                    {user && user.role == 'Admin' && (
-                        <ChakraLink as={RouterLink} to="/admin/register" {...linkStyle("/admin/register")}>
-                            Register Organizer
-                        </ChakraLink>
                     )}
 
                     {user && user.role == 'Admin' && (
@@ -93,6 +87,12 @@ const Navbar = () => {
                     {user && user.role == 'Organizer' && (
                         <ChakraLink as={RouterLink} to="/organizer/create" {...linkStyle("/organizer/create")}>
                             Create Event
+                        </ChakraLink>
+                    )}
+
+                    {user && user.role == 'Organizer' && (
+                        <ChakraLink as={RouterLink} to="/organizer/ongoing-events" {...linkStyle("/organizer/ongoing-events")}>
+                            Ongoing Events
                         </ChakraLink>
                     )}
 
@@ -132,7 +132,7 @@ const Navbar = () => {
                         </Button>
                     )}
 
-                    
+
                 </HStack>
 
                 {user && user.role === "Participant" && (

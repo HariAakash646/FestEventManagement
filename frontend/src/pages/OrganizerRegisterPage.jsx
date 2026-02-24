@@ -7,30 +7,33 @@ import {
     Input,
     Button,
     Stack,
+    HStack,
     Link,
     Text,
     Textarea,
 } from "@chakra-ui/react";
-import { FaUserAlt, FaLock, FaEnvelope, FaBuilding, FaAlignLeft, FaTag } from "react-icons/fa";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+import { FaUserAlt, FaBuilding, FaAlignLeft, FaTag } from "react-icons/fa";
+import { apiCall } from "../utils/api.js";
 
 const CATEGORY_OPTIONS = ["Clubs", "Councils", "Fest Teams"];
+const ORGANIZER_NAME_REGEX = /^[A-Za-z0-9 ]+$/;
+
+const toGeneratedEmail = (organizerName) => {
+    const normalized = String(organizerName || "").trim().replace(/\s+/g, " ");
+    if (!normalized || !ORGANIZER_NAME_REGEX.test(normalized)) return "";
+    return `${normalized.toLowerCase().replace(/ /g, ".")}@iiit.ac.in`;
+};
 
 const OrganizerRegisterPage = () => {
     const navigate = useNavigate();
-    const [showPassword, setShowPassword] = useState(false);
     const [formData, setFormData] = useState({
         organizerName: "",
         organizerId: "",
-        email: "",
-        password: "",
         category: "",
         description: "",
     });
     const [errors, setErrors] = useState({});
-
-    const handleShowClick = () => setShowPassword(!showPassword);
+    const [generatedCredentials, setGeneratedCredentials] = useState(null);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -45,12 +48,16 @@ const OrganizerRegisterPage = () => {
         const newErrors = {};
 
         if (!formData.organizerName.trim()) newErrors.organizerName = "Organizer Name is a compulsory field";
+        if (
+            formData.organizerName.trim() &&
+            !ORGANIZER_NAME_REGEX.test(formData.organizerName.trim().replace(/\s+/g, " "))
+        ) {
+            newErrors.organizerName = "Organizer Name can only contain letters, numbers, and spaces";
+        }
         if (!formData.organizerId.toString().trim()) newErrors.organizerId = "Organizer ID is a compulsory field";
         if (formData.organizerId.toString().trim() && !Number.isInteger(Number(formData.organizerId))) {
             newErrors.organizerId = "Organizer ID must be an integer";
         }
-        if (!formData.email.trim()) newErrors.email = "Email Address is a compulsory field";
-        if (!formData.password.trim()) newErrors.password = "Password is a compulsory field";
         if (!formData.category) newErrors.category = "Category is a compulsory field";
         if (!formData.description.trim()) newErrors.description = "Description is a compulsory field";
 
@@ -59,23 +66,23 @@ const OrganizerRegisterPage = () => {
 
         const payload = {
             role: "Organizer",
-            organizerName: formData.organizerName.trim(),
+            organizerName: formData.organizerName.trim().replace(/\s+/g, " "),
             organizerId: Number(formData.organizerId),
-            email: formData.email.trim(),
-            password: formData.password,
             category: formData.category,
             description: formData.description.trim(),
         };
 
         try {
-            const res = await fetch(`${API_URL}/users`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-            });
-            const data = await res.json();
+            const data = await apiCall("/users/admin/organizers", "POST", payload);
             if (data.success) {
-                navigate("/");
+                setGeneratedCredentials(data.generatedCredentials || null);
+                setErrors({});
+                setFormData({
+                    organizerName: "",
+                    organizerId: "",
+                    category: "",
+                    description: "",
+                });
             } else {
                 setErrors({ submit: data.message || "Registration failed" });
             }
@@ -143,27 +150,6 @@ const OrganizerRegisterPage = () => {
                                 {errors.organizerName && <Text color="red.500" fontSize="xs" mt="1">{errors.organizerName}</Text>}
                             </Box>
                             <Box>
-                                <Text fontSize="xs" color="gray.600" mb="1">Email Address<RequiredStar /></Text>
-                                <Box position="relative">
-                                    <Box
-                                        position="absolute"
-                                        left="0"
-                                        top="0"
-                                        bottom="0"
-                                        display="flex"
-                                        alignItems="center"
-                                        ps="3"
-                                        zIndex="1"
-                                        pointerEvents="none"
-                                        color="gray.300"
-                                    >
-                                        <FaEnvelope />
-                                    </Box>
-                                    <Input type="email" name="email" placeholder="Email Address" ps="10" value={formData.email} onChange={handleChange} />
-                                </Box>
-                                {errors.email && <Text color="red.500" fontSize="xs" mt="1">{errors.email}</Text>}
-                            </Box>
-                            <Box>
                                 <Text fontSize="xs" color="gray.600" mb="1">Organizer ID<RequiredStar /></Text>
                                 <Box position="relative">
                                     <Box
@@ -193,46 +179,14 @@ const OrganizerRegisterPage = () => {
                                 {errors.organizerId && <Text color="red.500" fontSize="xs" mt="1">{errors.organizerId}</Text>}
                             </Box>
                             <Box>
-                                <Text fontSize="xs" color="gray.600" mb="1">Password<RequiredStar /></Text>
-                                <Box position="relative">
-                                    <Box
-                                        position="absolute"
-                                        left="0"
-                                        top="0"
-                                        bottom="0"
-                                        display="flex"
-                                        alignItems="center"
-                                        ps="3"
-                                        zIndex="1"
-                                        pointerEvents="none"
-                                        color="gray.300"
-                                    >
-                                        <FaLock />
-                                    </Box>
-                                    <Input
-                                        type={showPassword ? "text" : "password"}
-                                        name="password"
-                                        placeholder="Password"
-                                        ps="10"
-                                        pe="4.5rem"
-                                        value={formData.password}
-                                        onChange={handleChange}
-                                    />
-                                    <Box
-                                        position="absolute"
-                                        right="0"
-                                        top="0"
-                                        bottom="0"
-                                        display="flex"
-                                        alignItems="center"
-                                        pe="2"
-                                    >
-                                        <Button size="sm" h="1.75rem" onClick={handleShowClick}>
-                                            {showPassword ? "Hide" : "Show"}
-                                        </Button>
-                                    </Box>
-                                </Box>
-                                {errors.password && <Text color="red.500" fontSize="xs" mt="1">{errors.password}</Text>}
+                                <Text fontSize="xs" color="gray.600" mb="1">Generated Organizer Email</Text>
+                                <Input
+                                    value={toGeneratedEmail(formData.organizerName) || "Will be auto-generated after valid organizer name"}
+                                    disabled
+                                />
+                                <Text fontSize="xs" color="gray.500" mt="1">
+                                    Format: organizer.name@iiit.ac.in (spaces become dots)
+                                </Text>
                             </Box>
                             <Box>
                                 <Text fontSize="xs" color="gray.600" mb="1">Category<RequiredStar /></Text>
@@ -310,8 +264,34 @@ const OrganizerRegisterPage = () => {
                                 colorPalette="teal"
                                 width="full"
                             >
-                                Register as Organizer
+                                Register Organizer
                             </Button>
+                            {generatedCredentials?.email && generatedCredentials?.password && (
+                                <Box border="1px solid" borderColor="green.200" borderRadius="md" p={3} bg="green.50">
+                                    <Text color="green.800" fontWeight="semibold" mb={2}>
+                                        Organizer credentials generated
+                                    </Text>
+                                    <Stack gap={1}>
+                                        <Text fontSize="sm" color="gray.800">Username: {generatedCredentials.email}</Text>
+                                        <Text fontSize="sm" color="gray.800">Password: {generatedCredentials.password}</Text>
+                                    </Stack>
+                                    <HStack mt={3}>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => {
+                                                const text = `Username: ${generatedCredentials.email}\nPassword: ${generatedCredentials.password}`;
+                                                navigator.clipboard?.writeText(text);
+                                            }}
+                                        >
+                                            Copy Credentials
+                                        </Button>
+                                        <Button size="sm" colorPalette="teal" onClick={() => navigate("/admin")}>
+                                            Back to Dashboard
+                                        </Button>
+                                    </HStack>
+                                </Box>
+                            )}
                         </Stack>
                     </form>
                 </Box>

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { randomInt } from "crypto";
 
 import User from "../models/user.model.js";
 
@@ -60,6 +61,96 @@ export const createUser = async (req, res) => {
             return res.status(400).json({ success: false, message: "Email already exists" });
         }
         res.status(500).json({ success: false, message: "Server Error" });
+    }
+};
+
+const ORGANIZER_NAME_REGEX = /^[A-Za-z0-9 ]+$/;
+
+const generateOrganizerEmail = (organizerName) => {
+    const normalized = String(organizerName || "").trim().replace(/\s+/g, " ");
+    const localPart = normalized.toLowerCase().replace(/ /g, ".");
+    return `${localPart}@iiit.ac.in`;
+};
+
+const generateRandomPassword = (length = 8) => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let result = "";
+    for (let i = 0; i < length; i += 1) {
+        result += chars[randomInt(chars.length)];
+    }
+    return result;
+};
+
+export const createOrganizerByAdmin = async (req, res) => {
+    try {
+        const organizerNameRaw = typeof req.body?.organizerName === "string" ? req.body.organizerName : "";
+        const organizerName = organizerNameRaw.trim().replace(/\s+/g, " ");
+        const organizerId = Number(req.body?.organizerId);
+        const category = typeof req.body?.category === "string" ? req.body.category.trim() : "";
+        const description = typeof req.body?.description === "string" ? req.body.description.trim() : "";
+
+        if (!organizerName) {
+            return res.status(400).json({ success: false, message: "Organizer Name is required" });
+        }
+        if (!ORGANIZER_NAME_REGEX.test(organizerName)) {
+            return res.status(400).json({
+                success: false,
+                message: "Organizer Name can only contain letters, numbers, and spaces",
+            });
+        }
+        if (!Number.isInteger(organizerId)) {
+            return res.status(400).json({ success: false, message: "Organizer ID must be an integer" });
+        }
+        if (!category) {
+            return res.status(400).json({ success: false, message: "Category is required" });
+        }
+        if (!description) {
+            return res.status(400).json({ success: false, message: "Description is required" });
+        }
+
+        const email = generateOrganizerEmail(organizerName);
+        const password = generateRandomPassword(8);
+
+        const newOrganizer = new User({
+            role: "Organizer",
+            organizerName,
+            organizerId,
+            email,
+            password,
+            category,
+            description,
+        });
+
+        await newOrganizer.save();
+
+        return res.status(201).json({
+            success: true,
+            data: newOrganizer,
+            generatedCredentials: {
+                email,
+                password,
+            },
+        });
+    } catch (error) {
+        console.log("error in admin organizer creation: ", error.message);
+        if (error.name === "ValidationError" || error.name === "CastError") {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+        if (error.code === 11000) {
+            if (error?.keyPattern?.email) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Generated organizer email already exists. Update organizer name and retry.",
+                });
+            }
+            if (error?.keyPattern?.organizerId) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Organizer ID already exists",
+                });
+            }
+        }
+        return res.status(500).json({ success: false, message: "Server Error" });
     }
 };
 

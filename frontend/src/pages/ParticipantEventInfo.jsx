@@ -49,6 +49,7 @@ const ParticipantEventInfo = () => {
     const [users, setUsers] = useState([]);
     const [items, setItems] = useState([]);
     const [purchaseQuantities, setPurchaseQuantities] = useState({});
+    const [itemSelections, setItemSelections] = useState({});
     const [purchaseError, setPurchaseError] = useState("");
     const [purchaseSuccess, setPurchaseSuccess] = useState("");
     const [purchasingItemId, setPurchasingItemId] = useState("");
@@ -210,6 +211,20 @@ const ParticipantEventInfo = () => {
                     });
                     return next;
                 });
+                setItemSelections((prev) => {
+                    const next = { ...prev };
+                    safeItems.forEach((item) => {
+                        if (!next[item._id]) {
+                            const colorOptions = Array.isArray(item.colorOptions) ? item.colorOptions : [];
+                            const sizeOptions = Array.isArray(item.sizeOptions) ? item.sizeOptions : [];
+                            next[item._id] = {
+                                selectedColor: colorOptions.length > 0 ? colorOptions[0] : "",
+                                selectedSize: sizeOptions.length > 0 ? sizeOptions[0] : "",
+                            };
+                        }
+                    });
+                    return next;
+                });
             } catch {
                 setItems([]);
             }
@@ -291,6 +306,16 @@ const ParticipantEventInfo = () => {
         }));
     };
 
+    const handleItemSelectionChange = (itemId, field, value) => {
+        setItemSelections((prev) => ({
+            ...prev,
+            [itemId]: {
+                ...(prev[itemId] || {}),
+                [field]: value,
+            },
+        }));
+    };
+
     const handlePurchase = async (item) => {
         if (!item?._id) return;
         setPurchaseError("");
@@ -312,6 +337,19 @@ const ParticipantEventInfo = () => {
             return;
         }
 
+        const selectedColor = itemSelections[item._id]?.selectedColor || "";
+        const selectedSize = itemSelections[item._id]?.selectedSize || "";
+        const colorOptions = Array.isArray(item.colorOptions) ? item.colorOptions : [];
+        const sizeOptions = Array.isArray(item.sizeOptions) ? item.sizeOptions : [];
+        if (colorOptions.length > 0 && !selectedColor) {
+            setPurchaseError("Please select a color option.");
+            return;
+        }
+        if (sizeOptions.length > 0 && !selectedSize) {
+            setPurchaseError("Please select a size option.");
+            return;
+        }
+
         const paymentAmount = (Number(item.cost) || 0) * quantity;
         navigate(`/participant/items/${item._id}/payment`, {
             state: {
@@ -320,6 +358,8 @@ const ParticipantEventInfo = () => {
                 itemName: item.itemName || "Item",
                 quantity,
                 paymentAmount,
+                selectedColor,
+                selectedSize,
             },
         });
     };
@@ -461,6 +501,8 @@ const ParticipantEventInfo = () => {
                                                     <InfoRow label="Cost" value={item.cost ?? "N/A"} />
                                                     <InfoRow label="Stock Available" value={item.stockAvailable ?? "N/A"} />
                                                     <InfoRow label="Purchase Limit" value={item.purchaseLimitPerParticipant ?? "N/A"} />
+                                                    <InfoRow label="Color Options" value={Array.isArray(item.colorOptions) && item.colorOptions.length > 0 ? item.colorOptions.join(", ") : "N/A"} />
+                                                    <InfoRow label="Size Options" value={Array.isArray(item.sizeOptions) && item.sizeOptions.length > 0 ? item.sizeOptions.join(", ") : "N/A"} />
                                                     <InfoRow label="Already Purchased By You" value={alreadyBought} />
                                                     <Box>
                                                         <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wider" mb={1}>
@@ -474,6 +516,52 @@ const ParticipantEventInfo = () => {
                                                             onChange={(e) => handleQuantityChange(item._id, e.target.value)}
                                                         />
                                                     </Box>
+                                                    {Array.isArray(item.colorOptions) && item.colorOptions.length > 0 && (
+                                                        <Box>
+                                                            <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wider" mb={1}>
+                                                                Select Color
+                                                            </Text>
+                                                            <select
+                                                                value={itemSelections[item._id]?.selectedColor || ""}
+                                                                onChange={(e) => handleItemSelectionChange(item._id, "selectedColor", e.target.value)}
+                                                                style={{
+                                                                    width: "100%",
+                                                                    padding: "0.5rem",
+                                                                    borderRadius: "0.375rem",
+                                                                    border: "1px solid #E2E8F0",
+                                                                    backgroundColor: "white",
+                                                                }}
+                                                            >
+                                                                <option value="">Select Color</option>
+                                                                {item.colorOptions.map((option) => (
+                                                                    <option key={option} value={option}>{option}</option>
+                                                                ))}
+                                                            </select>
+                                                        </Box>
+                                                    )}
+                                                    {Array.isArray(item.sizeOptions) && item.sizeOptions.length > 0 && (
+                                                        <Box>
+                                                            <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wider" mb={1}>
+                                                                Select Size
+                                                            </Text>
+                                                            <select
+                                                                value={itemSelections[item._id]?.selectedSize || ""}
+                                                                onChange={(e) => handleItemSelectionChange(item._id, "selectedSize", e.target.value)}
+                                                                style={{
+                                                                    width: "100%",
+                                                                    padding: "0.5rem",
+                                                                    borderRadius: "0.375rem",
+                                                                    border: "1px solid #E2E8F0",
+                                                                    backgroundColor: "white",
+                                                                }}
+                                                            >
+                                                                <option value="">Select Size</option>
+                                                                {item.sizeOptions.map((option) => (
+                                                                    <option key={option} value={option}>{option}</option>
+                                                                ))}
+                                                            </select>
+                                                        </Box>
+                                                    )}
                                                 </SimpleGrid>
                                                 <Button
                                                     mt={3}

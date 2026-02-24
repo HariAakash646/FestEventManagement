@@ -8,6 +8,7 @@ import {
     unarchiveOrganizer,
     loginUser,
     getMyProfile,
+    createOrganizerByAdmin,
     updateMyProfile,
     changeMyPassword,
     updateMyInterests,
@@ -20,6 +21,7 @@ const router = express.Router();
 
 router.get("/", getUsers);
 router.get("/me", authMiddleware, getMyProfile);
+router.post("/admin/organizers", authMiddleware, adminOnly, createOrganizerByAdmin);
 router.post("/", createUser);
 router.post("/login", loginUser);
 router.put("/me/profile", authMiddleware, updateMyProfile);

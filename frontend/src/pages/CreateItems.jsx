@@ -22,6 +22,8 @@ const CreateItems = () => {
             price: "",
             stockAvailable: "",
             purchaseLimitPerParticipant: "",
+            colorOptionsRaw: "",
+            sizeOptionsRaw: "",
         },
     ]);
     const [errors, setErrors] = useState({});
@@ -35,6 +37,8 @@ const CreateItems = () => {
                 price: "",
                 stockAvailable: "",
                 purchaseLimitPerParticipant: "",
+                colorOptionsRaw: "",
+                sizeOptionsRaw: "",
             },
         ]);
     };
@@ -92,6 +96,14 @@ const CreateItems = () => {
             itemName: item.itemName.trim(),
             cost: Number(item.price),
             stockAvailable: Number(item.stockAvailable),
+            colorOptions: item.colorOptionsRaw
+                .split(",")
+                .map((option) => option.trim())
+                .filter(Boolean),
+            sizeOptions: item.sizeOptionsRaw
+                .split(",")
+                .map((option) => option.trim())
+                .filter(Boolean),
             ...(item.purchaseLimitPerParticipant !== ""
                 ? { purchaseLimitPerParticipant: Number(item.purchaseLimitPerParticipant) }
                 : {}),
@@ -198,6 +210,22 @@ const CreateItems = () => {
                                                 {errors[`purchaseLimit-${index}`]}
                                             </Text>
                                         )}
+                                    </Box>
+                                    <Box>
+                                        <Text fontSize="sm" mb={1}>Color Options (Optional, comma-separated)</Text>
+                                        <Input
+                                            value={item.colorOptionsRaw}
+                                            onChange={(e) => handleItemChange(index, "colorOptionsRaw", e.target.value)}
+                                            placeholder="Red, Blue, Black"
+                                        />
+                                    </Box>
+                                    <Box>
+                                        <Text fontSize="sm" mb={1}>Size Options (Optional, comma-separated)</Text>
+                                        <Input
+                                            value={item.sizeOptionsRaw}
+                                            onChange={(e) => handleItemChange(index, "sizeOptionsRaw", e.target.value)}
+                                            placeholder="S, M, L, XL"
+                                        />
                                     </Box>
                                 </Stack>
                             </Box>

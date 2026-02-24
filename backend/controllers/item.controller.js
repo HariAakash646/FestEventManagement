@@ -21,7 +21,14 @@ const getRequesterOrganizerId = async (req) => {
     return requester.organizerId;
 };
 
-const validatePurchaseEligibility = ({ item, participant, event, quantity }) => {
+const normalizeStringArray = (values) => {
+    if (!Array.isArray(values)) return [];
+    return [...new Set(values
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter(Boolean))];
+};
+
+const validatePurchaseEligibility = ({ item, participant, event, quantity, selectedColor = "", selectedSize = "" }) => {
     if (!item) return "Item Not Found";
     if (!participant || participant.role !== "Participant") return "Participant access required";
     if (!event) return "Event Not Found";
@@ -29,6 +36,15 @@ const validatePurchaseEligibility = ({ item, participant, event, quantity }) => 
     if (event.status !== "Published" && event.status !== "Ongoing") return "Purchases are not open for this event";
     if (!Number.isInteger(quantity) || quantity < 1) return "quantity must be an integer >= 1";
     if (item.stockAvailable < quantity) return "Insufficient stock available";
+
+    const allowedColors = normalizeStringArray(item.colorOptions);
+    const allowedSizes = normalizeStringArray(item.sizeOptions);
+    if (allowedColors.length > 0 && !allowedColors.includes(selectedColor)) {
+        return "Please choose a valid color option";
+    }
+    if (allowedSizes.length > 0 && !allowedSizes.includes(selectedSize)) {
+        return "Please choose a valid size option";
+    }
 
     const participantId = String(participant._id);
     const alreadyPurchasedCount = Array.isArray(item.purchasedBy)
@@ -68,6 +84,8 @@ export const getItemsByEvent = async (req, res) => {
                         eventId: 1,
                         organizerId: 1,
                         itemName: 1,
+                        colorOptions: 1,
+                        sizeOptions: 1,
                         stockAvailable: 1,
                         cost: 1,
                         purchaseLimitPerParticipant: 1,
@@ -124,6 +142,8 @@ export const getItemsByIds = async (req, res) => {
                         eventId: 1,
                         organizerId: 1,
                         itemName: 1,
+                        colorOptions: 1,
+                        sizeOptions: 1,
                         stockAvailable: 1,
                         cost: 1,
                         purchaseLimitPerParticipant: 1,
@@ -193,6 +213,8 @@ export const createItemsForEvent = async (req, res) => {
             const stockAvailable = Number(rawItem?.stockAvailable);
             const cost = Number(rawItem?.cost);
             const purchaseLimitPerParticipant = rawItem?.purchaseLimitPerParticipant;
+            const colorOptions = normalizeStringArray(rawItem?.colorOptions);
+            const sizeOptions = normalizeStringArray(rawItem?.sizeOptions);
 
             if (!itemName) {
                 return res.status(400).json({ success: false, message: "Each item requires itemName" });
@@ -212,6 +234,8 @@ export const createItemsForEvent = async (req, res) => {
                 itemName,
                 stockAvailable,
                 cost,
+                colorOptions,
+                sizeOptions,
             };
 
             if (purchaseLimitPerParticipant !== undefined && purchaseLimitPerParticipant !== null && purchaseLimitPerParticipant !== "") {
@@ -240,6 +264,8 @@ export const createItemsForEvent = async (req, res) => {
 export const purchaseItem = async (req, res) => {
     const { itemId } = req.params;
     const quantity = Number(req.body?.quantity);
+    const selectedColor = typeof req.body?.selectedColor === "string" ? req.body.selectedColor.trim() : "";
+    const selectedSize = typeof req.body?.selectedSize === "string" ? req.body.selectedSize.trim() : "";
 
     if (!mongoose.Types.ObjectId.isValid(itemId)) {
         return res.status(404).json({ success: false, message: "Item Not Found" });
@@ -272,28 +298,18 @@ export const purchaseItem = async (req, res) => {
             return res.status(404).json({ success: false, message: "Event Not Found" });
         }
 
-        if (event.eventType !== "Merchandise Event") {
-            return res.status(400).json({ success: false, message: "This item is not linked to a merchandise event" });
-        }
-
-        if (event.status !== "Published" && event.status !== "Ongoing") {
-            return res.status(400).json({ success: false, message: "Purchases are not open for this event" });
-        }
-
-        if (item.stockAvailable < quantity) {
-            return res.status(400).json({ success: false, message: "Insufficient stock available" });
-        }
-
-        const participantId = String(participant._id);
-        const alreadyPurchasedCount = Array.isArray(item.purchasedBy)
-            ? item.purchasedBy.filter((userId) => String(userId) === participantId).length
-            : 0;
-
-        if (
-            typeof item.purchaseLimitPerParticipant === "number" &&
-            alreadyPurchasedCount + quantity > item.purchaseLimitPerParticipant
-        ) {
-            return res.status(400).json({ success: false, message: "Per participant purchase limit exceeded" });
+        const validationMessage = validatePurchaseEligibility({
+            item,
+            participant,
+            event,
+            quantity,
+            selectedColor,
+            selectedSize,
+        });
+        if (validationMessage) {
+            const statusCode = validationMessage === "Event Not Found" || validationMessage === "Item Not Found" ? 404 :
+                validationMessage === "Participant access required" ? 403 : 400;
+            return res.status(statusCode).json({ success: false, message: validationMessage });
         }
 
         item.stockAvailable -= quantity;
@@ -314,6 +330,8 @@ export const purchaseItem = async (req, res) => {
             eventName: event.eventName,
             itemName: item.itemName,
             quantity,
+            selectedColor,
+            selectedSize,
             costPerItem: item.cost,
             totalCost: item.cost * quantity,
             purchasedAt: purchaseDateTime.toISOString(),
@@ -322,6 +340,8 @@ export const purchaseItem = async (req, res) => {
         item.purchaseRecords.push({
             participantId: participant._id,
             quantity,
+            selectedColor,
+            selectedSize,
             purchasedAt: purchaseDateTime,
             qrPayload,
             qrCodeDataUrl,
@@ -368,6 +388,8 @@ export const createPurchaseRequest = async (req, res) => {
     const { itemId } = req.params;
     const quantity = Number(req.body?.quantity);
     const paymentProof = req.body?.paymentProof || null;
+    const selectedColor = typeof req.body?.selectedColor === "string" ? req.body.selectedColor.trim() : "";
+    const selectedSize = typeof req.body?.selectedSize === "string" ? req.body.selectedSize.trim() : "";
 
     if (!mongoose.Types.ObjectId.isValid(itemId)) {
         return res.status(404).json({ success: false, message: "Item Not Found" });
@@ -390,7 +412,14 @@ export const createPurchaseRequest = async (req, res) => {
         }
 
         const event = await Event.findById(item.eventId);
-        const validationMessage = validatePurchaseEligibility({ item, participant, event, quantity });
+        const validationMessage = validatePurchaseEligibility({
+            item,
+            participant,
+            event,
+            quantity,
+            selectedColor,
+            selectedSize,
+        });
         if (validationMessage) {
             const statusCode = validationMessage === "Event Not Found" || validationMessage === "Item Not Found" ? 404 :
                 validationMessage === "Participant access required" ? 403 : 400;
@@ -407,6 +436,8 @@ export const createPurchaseRequest = async (req, res) => {
             participantName,
             participantEmail: participant.email || "",
             quantity,
+            selectedColor,
+            selectedSize,
             paymentAmount: item.cost * quantity,
             paymentProof: {
                 name: paymentProof.name || "",
@@ -473,7 +504,14 @@ export const reviewPurchaseRequest = async (req, res) => {
             Event.findById(item.eventId),
         ]);
         const quantity = Number(requestEntry.quantity);
-        const validationMessage = validatePurchaseEligibility({ item, participant, event, quantity });
+        const validationMessage = validatePurchaseEligibility({
+            item,
+            participant,
+            event,
+            quantity,
+            selectedColor: requestEntry.selectedColor || "",
+            selectedSize: requestEntry.selectedSize || "",
+        });
         if (validationMessage) {
             return res.status(400).json({ success: false, message: validationMessage });
         }
@@ -497,6 +535,8 @@ export const reviewPurchaseRequest = async (req, res) => {
             eventName: event.eventName,
             itemName: item.itemName,
             quantity,
+            selectedColor: requestEntry.selectedColor || "",
+            selectedSize: requestEntry.selectedSize || "",
             costPerItem: item.cost,
             totalCost: item.cost * quantity,
             purchasedAt: purchaseDateTime.toISOString(),
@@ -505,6 +545,8 @@ export const reviewPurchaseRequest = async (req, res) => {
         item.purchaseRecords.push({
             participantId: participant._id,
             quantity,
+            selectedColor: requestEntry.selectedColor || "",
+            selectedSize: requestEntry.selectedSize || "",
             purchasedAt: purchaseDateTime,
             qrPayload,
             qrCodeDataUrl,

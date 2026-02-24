@@ -134,6 +134,8 @@ const EventInfo = () => {
         cost: "",
         stockAvailable: "",
         purchaseLimitPerParticipant: "",
+        colorOptionsRaw: "",
+        sizeOptionsRaw: "",
     });
     const [itemSaveError, setItemSaveError] = useState("");
     const [isSavingItem, setIsSavingItem] = useState(false);
@@ -278,6 +280,8 @@ const EventInfo = () => {
                     participantName,
                     participantEmail,
                     quantity: record.quantity ?? 0,
+                    selectedColor: record.selectedColor || "",
+                    selectedSize: record.selectedSize || "",
                     purchasedAt: record.purchasedAt || null,
                     qrPayload: record.qrPayload || null,
                     qrCodeDataUrl: record.qrCodeDataUrl || "",
@@ -341,6 +345,8 @@ const EventInfo = () => {
                         participantEmail,
                         quantity: request.quantity ?? 0,
                         paymentAmount: request.paymentAmount ?? ((item.cost || 0) * (request.quantity || 0)),
+                        selectedColor: request.selectedColor || "",
+                        selectedSize: request.selectedSize || "",
                         requestedAt: request.requestedAt || null,
                         paymentProofDataUrl: request.paymentProof?.contentBase64 || "",
                     };
@@ -896,6 +902,8 @@ const EventInfo = () => {
                 item.purchaseLimitPerParticipant !== undefined && item.purchaseLimitPerParticipant !== null
                     ? String(item.purchaseLimitPerParticipant)
                     : "",
+            colorOptionsRaw: Array.isArray(item.colorOptions) ? item.colorOptions.join(", ") : "",
+            sizeOptionsRaw: Array.isArray(item.sizeOptions) ? item.sizeOptions.join(", ") : "",
         });
     };
 
@@ -908,6 +916,8 @@ const EventInfo = () => {
             cost: "",
             stockAvailable: "",
             purchaseLimitPerParticipant: "",
+            colorOptionsRaw: "",
+            sizeOptionsRaw: "",
         });
     };
 
@@ -919,6 +929,8 @@ const EventInfo = () => {
             cost: "",
             stockAvailable: "",
             purchaseLimitPerParticipant: "",
+            colorOptionsRaw: "",
+            sizeOptionsRaw: "",
         });
     };
 
@@ -955,6 +967,14 @@ const EventInfo = () => {
             itemName: itemDraft.itemName.trim(),
             cost: Number(itemDraft.cost),
             stockAvailable: Number(itemDraft.stockAvailable),
+            colorOptions: itemDraft.colorOptionsRaw
+                .split(",")
+                .map((option) => option.trim())
+                .filter(Boolean),
+            sizeOptions: itemDraft.sizeOptionsRaw
+                .split(",")
+                .map((option) => option.trim())
+                .filter(Boolean),
             ...(itemDraft.purchaseLimitPerParticipant !== ""
                 ? { purchaseLimitPerParticipant: Number(itemDraft.purchaseLimitPerParticipant) }
                 : {}),
@@ -1932,6 +1952,8 @@ const EventInfo = () => {
                                                                 <Text fontSize="sm" color="gray.700">Participant: {request.participantName}</Text>
                                                                 <Text fontSize="sm" color="gray.700">Email: {request.participantEmail}</Text>
                                                                 <Text fontSize="sm" color="gray.700">Quantity: {request.quantity}</Text>
+                                                                <Text fontSize="sm" color="gray.700">Color: {request.selectedColor || "N/A"}</Text>
+                                                                <Text fontSize="sm" color="gray.700">Size: {request.selectedSize || "N/A"}</Text>
                                                                 <Text fontSize="sm" color="gray.700">Payment: Rs. {request.paymentAmount}</Text>
                                                                 <Text fontSize="sm" color="gray.700">Requested At: {formatDate(request.requestedAt)}</Text>
                                                             </SimpleGrid>
@@ -2031,6 +2053,8 @@ const EventInfo = () => {
                                                         <Text fontSize="sm" color="gray.700">Participant: {selectedMerchPurchase.participantName}</Text>
                                                         <Text fontSize="sm" color="gray.700">Email: {selectedMerchPurchase.participantEmail}</Text>
                                                         <Text fontSize="sm" color="gray.700">Quantity: {selectedMerchPurchase.quantity}</Text>
+                                                        <Text fontSize="sm" color="gray.700">Color: {selectedMerchPurchase.selectedColor || "N/A"}</Text>
+                                                        <Text fontSize="sm" color="gray.700">Size: {selectedMerchPurchase.selectedSize || "N/A"}</Text>
                                                         <Text fontSize="sm" color="gray.700">Purchased At: {formatDate(selectedMerchPurchase.purchasedAt)}</Text>
                                                     </SimpleGrid>
                                                     {selectedMerchPurchase.qrCodeDataUrl && (
@@ -2785,6 +2809,26 @@ const EventInfo = () => {
                                                                     onChange={(e) => handleItemDraftChange("purchaseLimitPerParticipant", e.target.value)}
                                                                 />
                                                             </Box>
+                                                            <Box>
+                                                                <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wider" mb={1}>
+                                                                    Color Options
+                                                                </Text>
+                                                                <Input
+                                                                    value={itemDraft.colorOptionsRaw}
+                                                                    onChange={(e) => handleItemDraftChange("colorOptionsRaw", e.target.value)}
+                                                                    placeholder="Red, Blue, Black"
+                                                                />
+                                                            </Box>
+                                                            <Box>
+                                                                <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wider" mb={1}>
+                                                                    Size Options
+                                                                </Text>
+                                                                <Input
+                                                                    value={itemDraft.sizeOptionsRaw}
+                                                                    onChange={(e) => handleItemDraftChange("sizeOptionsRaw", e.target.value)}
+                                                                    placeholder="S, M, L, XL"
+                                                                />
+                                                            </Box>
                                                         </SimpleGrid>
                                                     ) : (
                                                         <SimpleGrid columns={{ base: 1, md: 2 }} gap={2}>
@@ -2807,6 +2851,18 @@ const EventInfo = () => {
                                                             <Box>
                                                                 <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wider">Purchased Quantity</Text>
                                                                 <Text fontSize="sm" color="gray.800" fontWeight="medium">{item.purchasedQuantity ?? 0}</Text>
+                                                            </Box>
+                                                            <Box>
+                                                                <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wider">Color Options</Text>
+                                                                <Text fontSize="sm" color="gray.800" fontWeight="medium">
+                                                                    {Array.isArray(item.colorOptions) && item.colorOptions.length > 0 ? item.colorOptions.join(", ") : "N/A"}
+                                                                </Text>
+                                                            </Box>
+                                                            <Box>
+                                                                <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wider">Size Options</Text>
+                                                                <Text fontSize="sm" color="gray.800" fontWeight="medium">
+                                                                    {Array.isArray(item.sizeOptions) && item.sizeOptions.length > 0 ? item.sizeOptions.join(", ") : "N/A"}
+                                                                </Text>
                                                             </Box>
                                                         </SimpleGrid>
                                                     )}
@@ -2888,6 +2944,26 @@ const EventInfo = () => {
                                                         step="1"
                                                         value={itemDraft.purchaseLimitPerParticipant}
                                                         onChange={(e) => handleItemDraftChange("purchaseLimitPerParticipant", e.target.value)}
+                                                    />
+                                                </Box>
+                                                <Box>
+                                                    <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wider" mb={1}>
+                                                        Color Options
+                                                    </Text>
+                                                    <Input
+                                                        value={itemDraft.colorOptionsRaw}
+                                                        onChange={(e) => handleItemDraftChange("colorOptionsRaw", e.target.value)}
+                                                        placeholder="Red, Blue, Black"
+                                                    />
+                                                </Box>
+                                                <Box>
+                                                    <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wider" mb={1}>
+                                                        Size Options
+                                                    </Text>
+                                                    <Input
+                                                        value={itemDraft.sizeOptionsRaw}
+                                                        onChange={(e) => handleItemDraftChange("sizeOptionsRaw", e.target.value)}
+                                                        placeholder="S, M, L, XL"
                                                     />
                                                 </Box>
                                             </SimpleGrid>

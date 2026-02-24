@@ -15,6 +15,16 @@ const purchaseRecordSchema = new mongoose.Schema({
             message: "{VALUE} must be an integer",
         },
     },
+    selectedColor: {
+        type: String,
+        trim: true,
+        default: "",
+    },
+    selectedSize: {
+        type: String,
+        trim: true,
+        default: "",
+    },
     purchasedAt: {
         type: Date,
         default: Date.now,
@@ -75,6 +85,16 @@ const pendingPurchaseRequestSchema = new mongoose.Schema({
         required: true,
         min: 1,
     },
+    selectedColor: {
+        type: String,
+        trim: true,
+        default: "",
+    },
+    selectedSize: {
+        type: String,
+        trim: true,
+        default: "",
+    },
     paymentProof: {
         type: paymentProofSchema,
         default: null,
@@ -115,6 +135,14 @@ const itemSchema = new mongoose.Schema({
         type: String,
         required: true,
         trim: true,
+    },
+    colorOptions: {
+        type: [String],
+        default: [],
+    },
+    sizeOptions: {
+        type: [String],
+        default: [],
     },
     stockAvailable: {
         type: Number,

@@ -382,6 +382,8 @@ const HomePage = () => {
                         eventName: event?.eventName || "Unknown Event",
                         organizerName,
                         quantity: record.quantity ?? 0,
+                        selectedColor: record.selectedColor || "",
+                        selectedSize: record.selectedSize || "",
                         purchasedAt: record.purchasedAt || null,
                         qrPayload: record.qrPayload || null,
                         qrCodeDataUrl: record.qrCodeDataUrl || "",
@@ -892,6 +894,8 @@ const HomePage = () => {
                                                 <Text fontSize="sm" color="gray.700">Item Name: {selectedPurchaseRow.qrPayload?.itemName || selectedPurchaseRow.itemName}</Text>
                                                 <Text fontSize="sm" color="gray.700">Organizer Name: {selectedPurchaseRow.organizerName}</Text>
                                                 <Text fontSize="sm" color="gray.700">Quantity: {selectedPurchaseRow.qrPayload?.quantity ?? selectedPurchaseRow.quantity}</Text>
+                                                <Text fontSize="sm" color="gray.700">Color: {selectedPurchaseRow.qrPayload?.selectedColor || selectedPurchaseRow.selectedColor || "N/A"}</Text>
+                                                <Text fontSize="sm" color="gray.700">Size: {selectedPurchaseRow.qrPayload?.selectedSize || selectedPurchaseRow.selectedSize || "N/A"}</Text>
                                                 <Text fontSize="sm" color="gray.700">Cost per Item: {selectedPurchaseRow.qrPayload?.costPerItem ?? "N/A"}</Text>
                                                 <Text fontSize="sm" color="gray.700">Total Cost: {selectedPurchaseRow.qrPayload?.totalCost ?? "N/A"}</Text>
                                                 <Text fontSize="sm" color="gray.700">Purchase Date and Time: {formatDateTime(selectedPurchaseRow.qrPayload?.purchasedAt || selectedPurchaseRow.purchasedAt)}</Text>

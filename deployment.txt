@@ -1,0 +1,2 @@
+Frontend URL: https://fest-event-frontend.onrender.com/
+Backend URL: https://fest-event-backend.onrender.com
