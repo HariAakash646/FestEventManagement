@@ -110,6 +110,24 @@ const userSchema = new mongoose.Schema({
             return "";
         },
     },
+    organizerContactNumber: {
+        type: String,
+        trim: true,
+        default: "",
+    },
+    organizerUpiId: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        default: "",
+        validate: {
+            validator: function (value) {
+                if (!value) return true;
+                return /^[a-z0-9.\-_]{2,}@[a-z]{2,}$/i.test(value);
+            },
+            message: "organizerUpiId must be a valid UPI ID (example: name@bank)",
+        },
+    },
     discordWebhookUrl: {
         type: String,
         trim: true,

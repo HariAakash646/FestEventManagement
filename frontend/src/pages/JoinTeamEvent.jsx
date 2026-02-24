@@ -26,7 +26,7 @@ const JoinTeamEvent = () => {
     const { eventId, teamCode } = useParams();
     const navigate = useNavigate();
 
-    const [events, setEvents] = useState([]);
+    const [event, setEvent] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState("");
     const [formValues, setFormValues] = useState({});
@@ -40,31 +40,29 @@ const JoinTeamEvent = () => {
             setIsLoading(true);
             setError("");
             try {
-                const response = await apiCall("/events");
+                const response = await apiCall(`/events/${eventId}`);
                 if (!response?.success) {
                     setError(response?.message || "Failed to fetch event details");
-                    setEvents([]);
+                    setEvent(null);
                     return;
                 }
-                setEvents(Array.isArray(response.data) ? response.data : []);
+                setEvent(response?.data?.event || null);
             } catch {
                 setError("Something went wrong while fetching event details.");
-                setEvents([]);
+                setEvent(null);
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchEvent();
-    }, []);
+    }, [eventId]);
 
-    const event = useMemo(() => {
-        const found = events.find((item) => item._id === eventId);
-        if (!found) return null;
-        if (found.status !== "Published" && found.status !== "Ongoing") return null;
-        if (!found.isTeamEvent) return null;
-        return found;
-    }, [events, eventId]);
+    const isJoinableTeamEvent = useMemo(() => {
+        if (!event) return false;
+        if (event.status !== "Published" && event.status !== "Ongoing") return false;
+        return event.isTeamEvent === true;
+    }, [event]);
 
     const memberFields = useMemo(
         () => (Array.isArray(event?.customForm?.memberFields) ? event.customForm.memberFields : []),
@@ -195,7 +193,7 @@ const JoinTeamEvent = () => {
         setSubmitError("");
         setSubmitSuccess("");
 
-        if (!event) {
+        if (!event || !isJoinableTeamEvent) {
             setSubmitError("Event is not available for team joining.");
             return;
         }
@@ -259,7 +257,7 @@ const JoinTeamEvent = () => {
         );
     }
 
-    if (!event) {
+    if (!event || !isJoinableTeamEvent) {
         return (
             <Flex justifyContent="center" px={4} py={8}>
                 <Box w="full" maxW="720px">

@@ -170,9 +170,6 @@ const LoginPage = () => {
                                     </Box>
                                 </Box>
                                 {errors.password && <Text color="red.500" fontSize="xs" mt="1">{errors.password}</Text>}
-                                <Text textAlign="right" fontSize="sm" mt="1">
-                                    <Link color="teal.500" href="#">forgot password?</Link>
-                                </Text>
                             </Box>
                             {errors.submit && <Text color="red.500" fontSize="sm" textAlign="center">{errors.submit}</Text>}
                             <Button

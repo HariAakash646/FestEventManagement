@@ -173,10 +173,9 @@ const HomePage = () => {
             setIsLoading(true);
             setError("");
             try {
-                const [meResponse, eventsResponse, usersResponse] = await Promise.all([
+                const [meResponse, dashboardResponse] = await Promise.all([
                     apiCall("/users/me"),
-                    apiCall("/events"),
-                    apiCall("/users?role=Organizer&lite=true"),
+                    apiCall("/events/participant/dashboard"),
                 ]);
 
                 if (!meResponse?.success) {
@@ -184,27 +183,25 @@ const HomePage = () => {
                     return;
                 }
 
-                if (!eventsResponse?.success) {
-                    setError(eventsResponse?.message || "Failed to fetch events");
-                    return;
-                }
-
-                if (!usersResponse?.success) {
-                    setError(usersResponse?.message || "Failed to fetch organizers");
+                if (!dashboardResponse?.success) {
+                    setError(dashboardResponse?.message || "Failed to fetch dashboard data");
                     return;
                 }
 
                 const me = meResponse.data || {};
+                const dashboardData = dashboardResponse.data || {};
+                const scopedEvents = Array.isArray(dashboardData.events) ? dashboardData.events : [];
+                const scopedOrganizers = Array.isArray(dashboardData.organizers) ? dashboardData.organizers : [];
                 setRegisteredEventIds(
                     Array.isArray(me.registeredEvents) ? me.registeredEvents.map((id) => String(id)) : []
                 );
                 setPurchasedItemIds(
                     Array.isArray(me.purchasedItems) ? me.purchasedItems.map((id) => String(id)) : []
                 );
-                setEvents(Array.isArray(eventsResponse.data) ? eventsResponse.data : []);
-                setUsers(Array.isArray(usersResponse.data) ? usersResponse.data : []);
+                setEvents(scopedEvents);
+                setUsers(scopedOrganizers);
 
-                const allEventItemIds = (Array.isArray(eventsResponse.data) ? eventsResponse.data : [])
+                const allEventItemIds = scopedEvents
                     .flatMap((event) => (Array.isArray(event.itemIds) ? event.itemIds : []))
                     .map((id) => String(id));
                 const uniqueRelevantItemIds = Array.from(
@@ -817,6 +814,7 @@ const HomePage = () => {
                                                     Ticket Details
                                                 </Text>
                                                 <Text fontSize="sm" color="gray.700">User ID: {selectedRegisteredEventRow.qrPayload?.userId || String(user?._id || "N/A")}</Text>
+                                                <Text fontSize="sm" color="gray.700">Ticket ID: {selectedRegisteredEventRow.qrPayload?.ticketId || "N/A"}</Text>
                                                 <Text fontSize="sm" color="gray.700">Event ID: {selectedRegisteredEventRow.qrPayload?.eventId || String(selectedRegisteredEventRow.event._id)}</Text>
                                                 <Text fontSize="sm" color="gray.700">Participant Name: {selectedRegisteredEventRow.qrPayload?.participantName || `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "N/A"}</Text>
                                                 <Text fontSize="sm" color="gray.700">Event Name: {selectedRegisteredEventRow.qrPayload?.eventName || selectedRegisteredEventRow.event.eventName}</Text>
@@ -887,6 +885,7 @@ const HomePage = () => {
                                                     Purchase Ticket Details
                                                 </Text>
                                                 <Text fontSize="sm" color="gray.700">User ID: {selectedPurchaseRow.qrPayload?.userId || String(user?._id || "N/A")}</Text>
+                                                <Text fontSize="sm" color="gray.700">Ticket ID: {selectedPurchaseRow.qrPayload?.ticketId || "N/A"}</Text>
                                                 <Text fontSize="sm" color="gray.700">Event ID: {selectedPurchaseRow.qrPayload?.eventId || "N/A"}</Text>
                                                 <Text fontSize="sm" color="gray.700">Item ID: {selectedPurchaseRow.qrPayload?.itemId || selectedPurchaseRow.itemId}</Text>
                                                 <Text fontSize="sm" color="gray.700">Participant Name: {selectedPurchaseRow.qrPayload?.participantName || `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "N/A"}</Text>

@@ -200,6 +200,12 @@ const itemSchema = new mongoose.Schema({
     timestamps: true,
 });
 
+// Speeds up participant-scoped dashboard and purchase lookups.
+itemSchema.index({ eventId: 1 });
+itemSchema.index({ purchasedBy: 1 });
+itemSchema.index({ "purchaseRecords.participantId": 1 });
+itemSchema.index({ "pendingPurchaseRequests.participantId": 1 });
+
 const Item = mongoose.model("Item", itemSchema);
 
 export default Item;

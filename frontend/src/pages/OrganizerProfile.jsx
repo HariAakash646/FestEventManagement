@@ -22,6 +22,8 @@ const OrganizerProfile = () => {
         description: "",
         email: "",
         organizerContactEmail: "",
+        organizerContactNumber: "",
+        organizerUpiId: "",
         discordWebhookUrl: "",
     });
     const [isLoading, setIsLoading] = useState(true);
@@ -54,6 +56,8 @@ const OrganizerProfile = () => {
                         typeof profile.organizerContactEmail === "string"
                             ? profile.organizerContactEmail
                             : (profile.email || ""),
+                    organizerContactNumber: profile.organizerContactNumber || "",
+                    organizerUpiId: profile.organizerUpiId || "",
                     discordWebhookUrl: profile.discordWebhookUrl || "",
                 });
 
@@ -87,6 +91,8 @@ const OrganizerProfile = () => {
             category: formData.category,
             description: formData.description,
             organizerContactEmail: formData.organizerContactEmail,
+            organizerContactNumber: formData.organizerContactNumber,
+            organizerUpiId: formData.organizerUpiId,
             discordWebhookUrl: formData.discordWebhookUrl,
         };
 
@@ -109,6 +115,8 @@ const OrganizerProfile = () => {
                     typeof updated.organizerContactEmail === "string"
                         ? updated.organizerContactEmail
                         : (updated.email || prev.email),
+                organizerContactNumber: updated.organizerContactNumber || "",
+                organizerUpiId: updated.organizerUpiId || "",
                 discordWebhookUrl: updated.discordWebhookUrl || "",
             }));
 
@@ -216,6 +224,29 @@ const OrganizerProfile = () => {
                                     <Text fontSize="xs" color="gray.500" mt={1}>
                                         Defaults to login email. You can clear this field if you do not want to show a contact email.
                                     </Text>
+                                </Box>
+
+                                <Box>
+                                    <Text fontSize="sm" mb={1}>UPI ID</Text>
+                                    <Input
+                                        name="organizerUpiId"
+                                        placeholder="yourname@bank"
+                                        value={formData.organizerUpiId}
+                                        onChange={handleChange}
+                                    />
+                                    <Text fontSize="xs" color="gray.500" mt={1}>
+                                        This UPI ID will be shown on participant payment proof pages.
+                                    </Text>
+                                </Box>
+
+                                <Box>
+                                    <Text fontSize="sm" mb={1}>Contact Number</Text>
+                                    <Input
+                                        name="organizerContactNumber"
+                                        placeholder="Optional contact number"
+                                        value={formData.organizerContactNumber}
+                                        onChange={handleChange}
+                                    />
                                 </Box>
 
                                 <Box>

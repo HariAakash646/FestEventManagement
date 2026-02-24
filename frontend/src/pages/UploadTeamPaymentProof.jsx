@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
     Box,
@@ -20,6 +20,7 @@ const UploadTeamPaymentProof = () => {
     const [submitError, setSubmitError] = useState("");
     const [submitSuccess, setSubmitSuccess] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [organizerUpiId, setOrganizerUpiId] = useState("");
 
     const paymentAmount = useMemo(() => {
         const raw = location.state?.paymentAmount;
@@ -29,6 +30,22 @@ const UploadTeamPaymentProof = () => {
     const eventName = location.state?.eventName || "Team Event";
     const teamJoinLink = location.state?.teamJoinLink || "";
     const roleLabel = location.state?.role === "leader" ? "Team Leader" : "Team Member";
+
+    useEffect(() => {
+        const fetchOrganizerUpi = async () => {
+            try {
+                const response = await apiCall(`/events/${eventId}`);
+                if (!response?.success) {
+                    setOrganizerUpiId("");
+                    return;
+                }
+                setOrganizerUpiId(response?.data?.organizer?.organizerUpiId || "");
+            } catch {
+                setOrganizerUpiId("");
+            }
+        };
+        fetchOrganizerUpi();
+    }, [eventId]);
 
     const handleSubmitPaymentProof = async () => {
         setSubmitError("");
@@ -66,6 +83,13 @@ const UploadTeamPaymentProof = () => {
                     <Text color="gray.700">
                         Please complete payment of Rs. {paymentAmount} and upload payment proof here.
                     </Text>
+                    {organizerUpiId && (
+                        <Box border="1px solid" borderColor="teal.200" borderRadius="md" p={3} bg="teal.50">
+                            <Text fontSize="sm" color="teal.900">
+                                Pay to UPI ID: <b>{organizerUpiId}</b>
+                            </Text>
+                        </Box>
+                    )}
                     <Text fontSize="sm" color="gray.600">Event: {eventName}</Text>
                     <Text fontSize="sm" color="gray.600">Role: {roleLabel}</Text>
                     {teamJoinLink && (

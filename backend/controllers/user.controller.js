@@ -3,21 +3,38 @@ import { randomInt } from "crypto";
 
 import User from "../models/user.model.js";
 
-import { generateToken } from "../config/jwt.js";
+import { generateToken, verifyToken } from "../config/jwt.js";
 
 
 export const getUsers = async (req, res) => {
     try {
-        const { role, lite } = req.query || {};
+        const { role, lite, scope, ids } = req.query || {};
         const query = {};
         if (role && ["Participant", "Organizer", "Admin"].includes(role)) {
             query.role = role;
         }
+        if (typeof ids === "string" && ids.trim()) {
+            const requestedIds = ids
+                .split(",")
+                .map((value) => value.trim())
+                .filter(Boolean)
+                .filter((value) => mongoose.Types.ObjectId.isValid(value));
+            if (requestedIds.length === 0) {
+                return res.status(200).json({ success: true, data: [] });
+            }
+            query._id = { $in: requestedIds };
+        }
 
         const shouldUseLite = String(lite || "").toLowerCase() === "true";
-        const projection = shouldUseLite
-            ? "role firstName lastName email isIIIT organizerName organizerId category description organizerContactEmail active isOnline followedClubs interests createdAt updatedAt"
-            : "-password";
+        const liteScope = String(scope || "").toLowerCase();
+        let projection = "-password";
+        if (shouldUseLite) {
+            projection =
+                "role firstName lastName email isIIIT organizerName organizerId category description organizerContactEmail organizerContactNumber organizerUpiId active isOnline followedClubs interests createdAt updatedAt";
+            if (liteScope === "browse" && query.role === "Organizer") {
+                projection = "role organizerName organizerId";
+            }
+        }
 
         const users = await User.find(query).select(projection);
         res.status(200).json({ success: true, data: users });
@@ -47,6 +64,29 @@ export const getMyProfile = async (req, res) => {
 
 export const createUser = async (req, res) => {
     const user = req.body;
+    const targetRole = user?.role;
+
+    if (targetRole === "Organizer" || targetRole === "Admin") {
+        const token = req.headers.authorization?.split(" ")[1];
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: "Admin token required to create Organizer/Admin users",
+            });
+        }
+
+        const decoded = verifyToken(token);
+        if (!decoded) {
+            return res.status(401).json({ success: false, message: "Invalid or expired token" });
+        }
+
+        if (decoded.role !== "Admin") {
+            return res.status(403).json({
+                success: false,
+                message: "Admin access required to create Organizer/Admin users",
+            });
+        }
+    }
 
     try {
         const newUser = new User(user);
@@ -211,12 +251,17 @@ export const updateMyProfile = async (req, res) => {
                 });
             }
         } else if (user.role === "Organizer") {
-            const editableFields = ["organizerName", "category", "description", "discordWebhookUrl", "organizerContactEmail"];
+            const editableFields = ["organizerName", "category", "description", "discordWebhookUrl", "organizerContactEmail", "organizerContactNumber", "organizerUpiId"];
 
             editableFields.forEach((field) => {
                 if (Object.prototype.hasOwnProperty.call(req.body, field)) {
                     const value = req.body[field];
-                    if (field === "discordWebhookUrl" || field === "organizerContactEmail") {
+                    if (
+                        field === "discordWebhookUrl" ||
+                        field === "organizerContactEmail" ||
+                        field === "organizerContactNumber" ||
+                        field === "organizerUpiId"
+                    ) {
                         user[field] = typeof value === "string" ? value.trim() : "";
                     } else {
                         user[field] = typeof value === "string" ? value.trim() : value;

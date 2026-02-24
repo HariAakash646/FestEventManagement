@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import crypto from "crypto";
 
 import Event from "../models/event.model.js";
 import Item from "../models/item.model.js";
@@ -27,6 +28,9 @@ const normalizeStringArray = (values) => {
         .map((value) => (typeof value === "string" ? value.trim() : ""))
         .filter(Boolean))];
 };
+
+const generateTicketId = (prefix) =>
+    `${prefix}-${Date.now()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
 
 const validatePurchaseEligibility = ({ item, participant, event, quantity, selectedColor = "", selectedSize = "" }) => {
     if (!item) return "Item Not Found";
@@ -323,6 +327,7 @@ export const purchaseItem = async (req, res) => {
         const participantName = `${participant.firstName || ""} ${participant.lastName || ""}`.trim() || participant.email;
         const qrPayload = {
             type: "ItemPurchase",
+            ticketId: generateTicketId("MER"),
             userId: String(participant._id),
             eventId: String(event._id),
             itemId: String(item._id),
@@ -528,6 +533,7 @@ export const reviewPurchaseRequest = async (req, res) => {
             (`${participant.firstName || ""} ${participant.lastName || ""}`.trim() || participant.email);
         const qrPayload = {
             type: "ItemPurchase",
+            ticketId: generateTicketId("MER"),
             userId: String(participant._id),
             eventId: String(event._id),
             itemId: String(item._id),

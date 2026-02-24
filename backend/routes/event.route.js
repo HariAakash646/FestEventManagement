@@ -6,6 +6,8 @@ import { fileURLToPath } from "url";
 
 import {
     getEvents,
+    getEventById,
+    getParticipantDashboardData,
     createEvent,
     updateEvent,
     deleteEvent,
@@ -65,6 +67,8 @@ const chatUpload = multer({
 const router = express.Router();
 
 router.get("/", getEvents);
+router.get("/participant/dashboard", authMiddleware, getParticipantDashboardData);
+router.get("/:id", authMiddleware, getEventById);
 router.post("/", authMiddleware, createEvent);
 router.put("/:id", authMiddleware, updateEvent);
 router.put("/:id/register", authMiddleware, registerForEvent);

@@ -3,6 +3,7 @@ import crypto from "crypto";
 
 import Event from "../models/event.model.js";
 import User from "../models/user.model.js";
+import Item from "../models/item.model.js";
 import { sendRegistrationTicketEmail } from "../utils/email.js";
 import { sendEventPublishedWebhook } from "../utils/discordWebhook.js";
 import { generateQrDataUrlFromPayload } from "../utils/qr.js";
@@ -191,6 +192,9 @@ const getFeedbackParticipantHash = (participantId, eventId) =>
         .update(`${String(participantId)}:${String(eventId)}:event-feedback`)
         .digest("hex");
 
+const generateTicketId = (prefix) =>
+    `${prefix}-${Date.now()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+
 const hasParticipantAttendedEvent = (event) => {
     if (!event) return false;
     if (event.status === "Completed" || event.status === "Closed") return true;
@@ -201,10 +205,11 @@ const hasParticipantAttendedEvent = (event) => {
 
 export const getEvents = async (req, res) => {
     try {
-        const { organizerId, status, eventType, lite } = req.query || {};
+        const { organizerId, status, eventType, lite, scope } = req.query || {};
         const query = {};
         const parsedOrganizerId = Number(organizerId);
         const shouldUseLite = String(lite || "").toLowerCase() === "true";
+        const liteScope = String(scope || "").toLowerCase();
 
         if (Number.isInteger(parsedOrganizerId)) {
             query.organizerId = parsedOrganizerId;
@@ -218,14 +223,35 @@ export const getEvents = async (req, res) => {
 
         let eventQuery = Event.find(query);
         if (shouldUseLite) {
+            if (liteScope === "browse") {
+                eventQuery = eventQuery.select(
+                    "eventName eventDescription eventType status eligibility registrationDeadline eventStartDate eventEndDate organizerId eventTags visitsTimeStamps createdAt updatedAt"
+                );
+            } else {
             eventQuery = eventQuery.select(
                 "eventName eventDescription eventType status registrationOpen eligibility registrationDeadline eventStartDate eventEndDate registrationLimit registrationFee isTeamEvent minTeamSize maxTeamSize organizerId eventTags itemIds visitsTimeStamps registeredFormList pendingRegistrationRequests createdAt updatedAt"
             );
+            }
         }
 
         const events = await eventQuery;
 
         if (shouldUseLite) {
+            if (liteScope === "browse") {
+                const now = Date.now();
+                const browseLiteData = events.map((event) => {
+                    const obj = event.toObject();
+                    obj.visitsCount24h = (Array.isArray(obj.visitsTimeStamps) ? obj.visitsTimeStamps : [])
+                        .filter((ts) => {
+                            const time = new Date(ts).getTime();
+                            return !Number.isNaN(time) && now - time <= TWENTY_FOUR_HOURS_MS;
+                        }).length;
+                    delete obj.visitsTimeStamps;
+                    return obj;
+                });
+                return res.status(200).json({ success: true, data: browseLiteData });
+            }
+
             const liteData = events.map((event) => {
                 const obj = event.toObject();
                 obj.registeredCount = Array.isArray(obj.registeredFormList) ? obj.registeredFormList.length : 0;
@@ -248,6 +274,177 @@ export const getEvents = async (req, res) => {
     } catch (error) {
         console.log("error in fetching products: ", error.message);
         res.status(500).json({ success: false, message: "Server Error" });
+    }
+};
+
+export const getEventById = async (req, res) => {
+    const { id } = req.params;
+    const scope = String(req.query?.scope || "").trim().toLowerCase();
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(404).json({ success: false, message: "Event Not Found" });
+    }
+
+    try {
+        if (scope === "participant-team-detail" && req.user?.id && req.user?.role === "Participant") {
+            const participantId = String(req.user.id);
+            const teamDetailEvent = await Event.findById(id).select(
+                "eventName eventDescription eventType status registrationDeadline eventStartDate eventEndDate organizerId isTeamEvent minTeamSize maxTeamSize " +
+                "pendingRegistrationRequests.participantId pendingRegistrationRequests.participantName pendingRegistrationRequests.participantEmail pendingRegistrationRequests.formSnapshot pendingRegistrationRequests.requestedAt pendingRegistrationRequests.status pendingRegistrationRequests.isTeamRegistration pendingRegistrationRequests.targetTeamSize pendingRegistrationRequests.teamJoinCode pendingRegistrationRequests.teamJoinLink " +
+                "pendingRegistrationRequests.teamMembers.participantId pendingRegistrationRequests.teamMembers.participantName pendingRegistrationRequests.teamMembers.participantEmail pendingRegistrationRequests.teamMembers.formSnapshot pendingRegistrationRequests.teamMembers.joinedAt " +
+                "registeredFormList.participantId registeredFormList.formSnapshot"
+            ).lean();
+
+            if (!teamDetailEvent) {
+                return res.status(404).json({ success: false, message: "Event Not Found" });
+            }
+
+            const teamRequests = Array.isArray(teamDetailEvent.pendingRegistrationRequests)
+                ? teamDetailEvent.pendingRegistrationRequests
+                : [];
+            const matchingTeamRequest = teamRequests.find((request) => {
+                if (String(request?.participantId) === participantId) return true;
+                const members = Array.isArray(request?.teamMembers) ? request.teamMembers : [];
+                return members.some((member) => String(member?.participantId) === participantId);
+            }) || null;
+
+            const registrations = Array.isArray(teamDetailEvent.registeredFormList)
+                ? teamDetailEvent.registeredFormList
+                : [];
+            const matchingRegistration = registrations.find(
+                (entry) => String(entry?.participantId) === participantId
+            ) || null;
+
+            const event = {
+                ...teamDetailEvent,
+                pendingRegistrationRequests: matchingTeamRequest ? [matchingTeamRequest] : [],
+                registeredFormList: matchingRegistration ? [matchingRegistration] : [],
+            };
+
+            const organizer = await User.findOne({
+                role: "Organizer",
+                organizerId: teamDetailEvent.organizerId,
+            }).select("role organizerName organizerId category description organizerContactEmail organizerUpiId active");
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    event,
+                    organizer: organizer || null,
+                },
+            });
+        }
+
+        const event = await Event.findById(id);
+        if (!event) {
+            return res.status(404).json({ success: false, message: "Event Not Found" });
+        }
+
+        const organizer = await User.findOne({
+            role: "Organizer",
+            organizerId: event.organizerId,
+        }).select("role organizerName organizerId category description organizerContactEmail organizerUpiId active");
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                event,
+                organizer: organizer || null,
+            },
+        });
+    } catch (error) {
+        console.error("Error in getEventById:", error.message);
+        return res.status(500).json({ success: false, message: "Server Error" });
+    }
+};
+
+export const getParticipantDashboardData = async (req, res) => {
+    try {
+        if (!req.user?.id || req.user?.role !== "Participant") {
+            return res.status(403).json({ success: false, message: "Participant access required" });
+        }
+
+        const participant = await User.findById(req.user.id).select("role");
+        if (!participant || participant.role !== "Participant") {
+            return res.status(403).json({ success: false, message: "Participant access required" });
+        }
+
+        const participantObjectId = new mongoose.Types.ObjectId(req.user.id);
+
+        const relatedItems = await Item.find({
+            $or: [
+                { purchasedBy: participantObjectId },
+                { "purchaseRecords.participantId": participantObjectId },
+                { "pendingPurchaseRequests.participantId": participantObjectId },
+            ],
+        }).select("eventId");
+        const relatedItemEventIds = relatedItems
+            .map((item) => item.eventId)
+            .filter(Boolean);
+
+        const events = await Event.find({
+            $or: [
+                { "registeredFormList.participantId": participantObjectId },
+                { "pendingRegistrationRequests.participantId": participantObjectId },
+                { "pendingRegistrationRequests.teamMembers.participantId": participantObjectId },
+                ...(relatedItemEventIds.length > 0 ? [{ _id: { $in: relatedItemEventIds } }] : []),
+            ],
+        }).select(
+            "eventName eventDescription eventType status registrationDeadline eventStartDate eventEndDate organizerId itemIds isTeamEvent registrationFee " +
+            "registeredFormList.participantId registeredFormList.registeredAt registeredFormList.qrPayload registeredFormList.qrCodeDataUrl " +
+            "pendingRegistrationRequests.participantId pendingRegistrationRequests.requestedAt pendingRegistrationRequests.reviewedAt pendingRegistrationRequests.status pendingRegistrationRequests.paymentAmount pendingRegistrationRequests.isTeamRegistration pendingRegistrationRequests.targetTeamSize pendingRegistrationRequests.teamMembers.participantId " +
+            "createdAt updatedAt"
+        );
+
+        const participantIdStr = String(participantObjectId);
+        const scopedEvents = events.map((event) => {
+            const eventObj = event.toObject();
+            const registrations = Array.isArray(eventObj.registeredFormList) ? eventObj.registeredFormList : [];
+            const pendingRequests = Array.isArray(eventObj.pendingRegistrationRequests)
+                ? eventObj.pendingRegistrationRequests
+                : [];
+
+            const participantRegistrations = registrations.filter(
+                (entry) => String(entry?.participantId) === participantIdStr
+            );
+            const participantPendingRequests = pendingRequests.filter((request) => {
+                if (String(request?.participantId) === participantIdStr) return true;
+                const members = Array.isArray(request?.teamMembers) ? request.teamMembers : [];
+                return members.some((member) => String(member?.participantId) === participantIdStr);
+            });
+
+            return {
+                ...eventObj,
+                registeredFormList: participantRegistrations,
+                pendingRegistrationRequests: participantPendingRequests,
+            };
+        });
+
+        const organizerIds = [...new Set(
+            scopedEvents
+                .map((event) => event.organizerId)
+                .filter((organizerId) => Number.isInteger(organizerId))
+        )];
+
+        const organizers = organizerIds.length > 0
+            ? await User.find({
+                role: "Organizer",
+                organizerId: { $in: organizerIds },
+            }).select(
+                "role organizerName organizerId category description organizerContactEmail organizerUpiId active"
+            )
+            : [];
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                events: scopedEvents,
+                organizers,
+            },
+        });
+    } catch (error) {
+        console.error("Error in getParticipantDashboardData:", error.message);
+        return res.status(500).json({ success: false, message: "Server Error" });
     }
 };
 
@@ -578,6 +775,7 @@ export const registerForEvent = async (req, res) => {
 
         const qrPayload = {
             type: "EventRegistration",
+            ticketId: generateTicketId("EVT"),
             userId: String(participant._id),
             eventId: String(event._id),
             participantName,
@@ -904,6 +1102,7 @@ const finalizeTeamRegistration = async ({ event, teamRequest }) => {
         const participantName = `${participant.firstName || ""} ${participant.lastName || ""}`.trim() || participant.email;
         const qrPayload = {
             type: "EventRegistration",
+            ticketId: generateTicketId("EVT"),
             userId: String(participant._id),
             eventId: String(event._id),
             participantName,
@@ -1758,6 +1957,7 @@ export const reviewRegistrationPaymentRequest = async (req, res) => {
             (`${participant.firstName || ""} ${participant.lastName || ""}`.trim() || participant.email);
         const qrPayload = {
             type: "EventRegistration",
+            ticketId: generateTicketId("EVT"),
             userId: String(participant._id),
             eventId: String(event._id),
             participantName,

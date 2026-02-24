@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
     Badge,
@@ -177,24 +177,14 @@ const EventInfo = () => {
             setIsLoading(true);
             setError("");
             try {
-                const [eventsResponse, usersResponse] = await Promise.all([
-                    apiCall("/events"),
-                    apiCall("/users?lite=true"),
-                ]);
-
-                if (!eventsResponse?.success) {
-                    setError(eventsResponse?.message || "Failed to fetch event details");
+                const eventResponse = await apiCall(`/events/${eventId}`);
+                if (!eventResponse?.success) {
+                    setError(eventResponse?.message || "Failed to fetch event details");
                     setEventData(null);
                     return;
                 }
 
-                if (usersResponse?.success) {
-                    setAllUsers(Array.isArray(usersResponse.data) ? usersResponse.data : []);
-                } else {
-                    setAllUsers([]);
-                }
-
-                const foundEvent = (eventsResponse.data || []).find((item) => item._id === eventId);
+                const foundEvent = eventResponse?.data?.event || null;
                 if (!foundEvent) {
                     setError("Event not found.");
                     setEventData(null);
@@ -215,10 +205,63 @@ const EventInfo = () => {
         fetchEvent();
     }, [eventId]);
 
-    const userById = allUsers.reduce((acc, currentUser) => {
+    const relevantUserIds = useMemo(() => {
+        const idSet = new Set();
+        const registrations = Array.isArray(eventData?.registeredFormList) ? eventData.registeredFormList : [];
+        const pendingRequests = Array.isArray(eventData?.pendingRegistrationRequests) ? eventData.pendingRegistrationRequests : [];
+        const purchaseRecords = Array.isArray(items)
+            ? items.flatMap((item) => (Array.isArray(item.purchaseRecords) ? item.purchaseRecords : []))
+            : [];
+        const pendingPurchaseRequests = Array.isArray(items)
+            ? items.flatMap((item) => (Array.isArray(item.pendingPurchaseRequests) ? item.pendingPurchaseRequests : []))
+            : [];
+
+        registrations.forEach((entry) => {
+            if (entry?.participantId) idSet.add(String(entry.participantId));
+        });
+        pendingRequests.forEach((request) => {
+            if (request?.participantId) idSet.add(String(request.participantId));
+            const members = Array.isArray(request?.teamMembers) ? request.teamMembers : [];
+            members.forEach((member) => {
+                if (member?.participantId) idSet.add(String(member.participantId));
+            });
+        });
+        purchaseRecords.forEach((record) => {
+            if (record?.participantId) idSet.add(String(record.participantId));
+        });
+        pendingPurchaseRequests.forEach((request) => {
+            if (request?.participantId) idSet.add(String(request.participantId));
+        });
+
+        return Array.from(idSet);
+    }, [eventData?.registeredFormList, eventData?.pendingRegistrationRequests, items]);
+
+    useEffect(() => {
+        const fetchRelevantUsers = async () => {
+            if (!relevantUserIds.length) {
+                setAllUsers([]);
+                return;
+            }
+            try {
+                const idsParam = encodeURIComponent(relevantUserIds.join(","));
+                const usersResponse = await apiCall(`/users?lite=true&ids=${idsParam}`);
+                if (!usersResponse?.success) {
+                    setAllUsers([]);
+                    return;
+                }
+                setAllUsers(Array.isArray(usersResponse.data) ? usersResponse.data : []);
+            } catch {
+                setAllUsers([]);
+            }
+        };
+
+        fetchRelevantUsers();
+    }, [relevantUserIds]);
+
+    const userById = useMemo(() => allUsers.reduce((acc, currentUser) => {
         acc[String(currentUser._id)] = currentUser;
         return acc;
-    }, {});
+    }, {}), [allUsers]);
 
     const isDraftEvent = eventData?.status === "Draft";
     const isPublishedEvent = eventData?.status === "Published";

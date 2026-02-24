@@ -28,7 +28,7 @@ const RegisterEvent = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
 
-    const [events, setEvents] = useState([]);
+    const [event, setEvent] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState("");
     const [formValues, setFormValues] = useState({});
@@ -44,30 +44,28 @@ const RegisterEvent = () => {
             setIsLoading(true);
             setError("");
             try {
-                const response = await apiCall("/events");
+                const response = await apiCall(`/events/${eventId}`);
                 if (!response?.success) {
                     setError(response?.message || "Failed to fetch event details");
-                    setEvents([]);
+                    setEvent(null);
                     return;
                 }
-                setEvents(Array.isArray(response.data) ? response.data : []);
+                setEvent(response?.data?.event || null);
             } catch {
                 setError("Something went wrong while fetching event details.");
-                setEvents([]);
+                setEvent(null);
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchEvent();
-    }, []);
+    }, [eventId]);
 
-    const event = useMemo(() => {
-        const found = events.find((item) => item._id === eventId);
-        if (!found) return null;
-        if (found.status !== "Published" && found.status !== "Ongoing") return null;
-        return found;
-    }, [events, eventId]);
+    const isEventOpenForRegistration = useMemo(
+        () => event && (event.status === "Published" || event.status === "Ongoing"),
+        [event]
+    );
 
     const isTeamEvent = !!event?.isTeamEvent;
     const fields = useMemo(() => {
@@ -240,7 +238,7 @@ const RegisterEvent = () => {
         setSubmitSuccess("");
         setTeamJoinLink("");
 
-        if (!event) {
+        if (!event || !isEventOpenForRegistration) {
             setSubmitError("Event is not available for registration.");
             return;
         }
@@ -352,7 +350,7 @@ const RegisterEvent = () => {
         );
     }
 
-    if (!event) {
+    if (!event || !isEventOpenForRegistration) {
         return (
             <Flex justifyContent="center" px={4} py={8}>
                 <Box w="full" maxW="720px">

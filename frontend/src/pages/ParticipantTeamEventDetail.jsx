@@ -50,7 +50,7 @@ const ParticipantTeamEventDetail = () => {
     const { user } = useAuth();
 
     const [event, setEvent] = useState(null);
-    const [users, setUsers] = useState([]);
+    const [organizerName, setOrganizerName] = useState("Unknown Organizer");
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState("");
 
@@ -59,28 +59,20 @@ const ParticipantTeamEventDetail = () => {
             setIsLoading(true);
             setError("");
             try {
-                const [eventsResponse, usersResponse] = await Promise.all([
-                    apiCall("/events"),
-                    apiCall("/users"),
-                ]);
-
-                if (!eventsResponse?.success) {
-                    setError(eventsResponse?.message || "Failed to fetch event details.");
-                    return;
-                }
-                if (!usersResponse?.success) {
-                    setError(usersResponse?.message || "Failed to fetch users.");
+                const eventResponse = await apiCall(`/events/${eventId}?scope=participant-team-detail`);
+                if (!eventResponse?.success) {
+                    setError(eventResponse?.message || "Failed to fetch event details.");
                     return;
                 }
 
-                const foundEvent = (eventsResponse.data || []).find((item) => String(item._id) === String(eventId));
+                const foundEvent = eventResponse?.data?.event || null;
                 if (!foundEvent || foundEvent.isTeamEvent !== true) {
                     setError("Team event not found.");
                     return;
                 }
 
                 setEvent(foundEvent);
-                setUsers(Array.isArray(usersResponse.data) ? usersResponse.data : []);
+                setOrganizerName(eventResponse?.data?.organizer?.organizerName || "Unknown Organizer");
             } catch {
                 setError("Something went wrong while loading team event details.");
             } finally {
@@ -90,12 +82,6 @@ const ParticipantTeamEventDetail = () => {
 
         fetchData();
     }, [eventId]);
-
-    const organizerName = useMemo(() => {
-        if (!event) return "Unknown Organizer";
-        const organizer = users.find((entry) => entry.role === "Organizer" && entry.organizerId === event.organizerId);
-        return organizer?.organizerName || "Unknown Organizer";
-    }, [event, users]);
 
     const teamRequest = useMemo(() => {
         if (!event || !user?._id) return null;
@@ -120,8 +106,6 @@ const ParticipantTeamEventDetail = () => {
 
     const teamMembersInfo = useMemo(() => {
         if (!teamRequest) return [];
-        const userById = new Map(users.map((entry) => [String(entry._id), entry]));
-
         const leader = {
             key: `leader-${String(teamRequest.participantId)}`,
             role: "Leader",
@@ -129,7 +113,7 @@ const ParticipantTeamEventDetail = () => {
             participantName: teamRequest.participantName || "Unknown Participant",
             participantEmail: teamRequest.participantEmail || "N/A",
             joinedAt: teamRequest.requestedAt || null,
-            isOnline: userById.get(String(teamRequest.participantId))?.isOnline === true,
+            isOnline: false,
         };
         const members = Array.isArray(teamRequest.teamMembers)
             ? teamRequest.teamMembers.map((member, index) => ({
@@ -139,11 +123,11 @@ const ParticipantTeamEventDetail = () => {
                 participantName: member.participantName || "Unknown Participant",
                 participantEmail: member.participantEmail || "N/A",
                 joinedAt: member.joinedAt || null,
-                isOnline: userById.get(String(member.participantId))?.isOnline === true,
+                isOnline: false,
             }))
             : [];
         return [leader, ...members];
-    }, [teamRequest, users]);
+    }, [teamRequest]);
 
     const currentUserFormSnapshot = useMemo(() => {
         if (!user?._id) return [];

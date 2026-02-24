@@ -45,8 +45,8 @@ const ParticipantEventInfo = () => {
     const { eventId } = useParams();
     const navigate = useNavigate();
     const { user } = useAuth();
-    const [events, setEvents] = useState([]);
-    const [users, setUsers] = useState([]);
+    const [event, setEvent] = useState(null);
+    const [organizer, setOrganizer] = useState(null);
     const [items, setItems] = useState([]);
     const [purchaseQuantities, setPurchaseQuantities] = useState({});
     const [itemSelections, setItemSelections] = useState({});
@@ -73,55 +73,29 @@ const ParticipantEventInfo = () => {
             setIsLoading(true);
             setError("");
             try {
-                const [eventsResponse, usersResponse] = await Promise.all([
-                    apiCall("/events"),
-                    apiCall("/users?role=Organizer&lite=true"),
-                ]);
+                const eventResponse = await apiCall(`/events/${eventId}`);
 
-                if (!eventsResponse?.success) {
-                    setError(eventsResponse?.message || "Failed to fetch event details");
-                    setEvents([]);
-                    setUsers([]);
+                if (!eventResponse?.success) {
+                    setError(eventResponse?.message || "Failed to fetch event details");
+                    setEvent(null);
+                    setOrganizer(null);
                     return;
                 }
 
-                if (!usersResponse?.success) {
-                    setError(usersResponse?.message || "Failed to fetch organizer details");
-                    setEvents([]);
-                    setUsers([]);
-                    return;
-                }
-
-                setEvents(Array.isArray(eventsResponse.data) ? eventsResponse.data : []);
-                setUsers(Array.isArray(usersResponse.data) ? usersResponse.data : []);
+                const payload = eventResponse.data || {};
+                setEvent(payload.event || null);
+                setOrganizer(payload.organizer || null);
             } catch (err) {
                 setError("Something went wrong while fetching event details.");
-                setEvents([]);
-                setUsers([]);
+                setEvent(null);
+                setOrganizer(null);
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchData();
-    }, []);
-
-    const organizerNameById = useMemo(() => {
-        const map = new Map();
-        users.forEach((user) => {
-            if (user.role === "Organizer" && Number.isInteger(user.organizerId)) {
-                map.set(user.organizerId, user.organizerName || "Unknown Organizer");
-            }
-        });
-        return map;
-    }, [users]);
-
-    const event = useMemo(() => {
-        const found = events.find((item) => item._id === eventId);
-        if (!found) return null;
-        if (!["Published", "Ongoing", "Completed", "Closed", "Cancelled"].includes(found.status)) return null;
-        return found;
-    }, [events, eventId]);
+    }, [eventId]);
 
     useEffect(() => {
         const recordVisit = async () => {
@@ -466,7 +440,7 @@ const ParticipantEventInfo = () => {
                             )}
                             <Box h="1px" bg="gray.200" />
                             <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
-                                <InfoRow label="Organizer" value={organizerNameById.get(event.organizerId) || "Unknown Organizer"} />
+                                <InfoRow label="Organizer" value={organizer?.organizerName || "Unknown Organizer"} />
                                 <InfoRow label="Type" value={event.eventType || "N/A"} />
                                 <InfoRow label="Eligibility" value={event.eligibility || "N/A"} />
                                 <InfoRow label="Registration Deadline" value={formatDateTime(event.registrationDeadline)} />

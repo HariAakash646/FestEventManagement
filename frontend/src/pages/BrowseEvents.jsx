@@ -56,8 +56,8 @@ const BrowseEvents = () => {
 
             try {
                 const [eventsResponse, usersResponse, meResponse, tagsResponse] = await Promise.all([
-                    apiCall("/events?lite=true"),
-                    apiCall("/users?role=Organizer&lite=true"),
+                    apiCall("/events?lite=true&scope=browse"),
+                    apiCall("/users?role=Organizer&lite=true&scope=browse"),
                     apiCall("/users/me"),
                     apiCall("/tags"),
                 ]);
@@ -143,8 +143,8 @@ const BrowseEvents = () => {
         return [...browseableEvents]
             .sort(
                 (a, b) =>
-                    (Array.isArray(b.visitsTimeStamps) ? b.visitsTimeStamps.length : 0) -
-                    (Array.isArray(a.visitsTimeStamps) ? a.visitsTimeStamps.length : 0)
+                    (Number(b.visitsCount24h) || 0) -
+                    (Number(a.visitsCount24h) || 0)
             )
             .slice(0, 5);
     }, [browseableEvents]);

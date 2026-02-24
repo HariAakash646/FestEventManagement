@@ -529,6 +529,12 @@ const eventSchema = new mongoose.Schema({
     timestamps: true // createdAt, updatedAt
 });
 
+// Speeds up participant-scoped dashboard queries.
+eventSchema.index({ "registeredFormList.participantId": 1 });
+eventSchema.index({ "pendingRegistrationRequests.participantId": 1 });
+eventSchema.index({ "pendingRegistrationRequests.teamMembers.participantId": 1 });
+eventSchema.index({ organizerId: 1, status: 1 });
+
 const Event = mongoose.model('Event', eventSchema);
 
 export default Event;
